@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/P4rfa1t/nx.rpg/schemas/game-config.schema.json",
+  "title": "nx.rpg Per-Game Configuration",
+  "description": "Optional per-game overrides stored at sdmc:/switch/nx.rpg/config/games/<game_id>.json.",
+  "type": "object",
+  "properties": {
+    "displayTitle": {
+      "type": "string",
+      "description": "Custom display title in Launcher UI."
+    },
+    "engineOverride": {
+      "type": "string",
+      "enum": ["auto", "rm2k", "rm2k3", "rmxp", "rmvx", "rmvxa", "rmmv", "rmmz"],
+      "default": "auto"
+    },
+    "encoding": {
+      "type": "string",
+      "enum": ["auto", "utf-8", "shift_jis", "gbk", "big5", "cp949", "cp1252"],
+      "default": "auto"
+    },
+    "rtpOverridePath": {
+      "type": "string",
+      "description": "Optional custom RTP path overriding the default engine RTP."
+    },
+    "fallbackFontPath": {
+      "type": "string",
+      "description": "Optional game-specific fallback font file."
+    },
+    "video": {
+      "type": "object",
+      "properties": {
+        "scalingMode": {
+          "type": "string",
+          "enum": ["fit", "stretch", "native"]
+        },
+        "integerScale": {
+          "type": "boolean"
+        },
+        "vsync": {
+          "type": "boolean"
+        },
+        "showFps": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "input": {
+      "type": "object",
+      "properties": {
+        "profile": {
+          "type": "string"
+        },
+        "enableTouch": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "mvzOptions": {
+      "type": "object",
+      "description": "Advanced overrides for nx.js (MV/MZ) core.",
+      "properties": {
+        "renderer": {
+          "type": "string",
+          "enum": ["auto", "webgl", "canvas"],
+          "default": "auto"
+        },
+        "pretendNwjs": {
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "mkxpOptions": {
+      "type": "object",
+      "description": "Advanced overrides for mkxp-z (XP/VX/VXAce) core.",
+      "properties": {
+        "enableWin32ApiStubs": {
+          "type": "boolean",
+          "default": true
+        },
+        "solidFonts": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

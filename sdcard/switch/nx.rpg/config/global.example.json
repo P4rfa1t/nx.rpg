@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "uiLanguage": "zh-CN",
+  "defaultEncoding": "auto",
+  "fallbackFontPath": "sdmc:/switch/nx.rpg/fonts/NotoSansCJK-Regular.ttc",
+  "warnOnAppletMode": true,
+  "video": {
+    "scalingMode": "fit",
+    "integerScale": false,
+    "vsync": true,
+    "showFps": false
+  },
+  "input": {
+    "profile": "default",
+    "exitCombo": ["L", "R", "PLUS"]
+  }
+}

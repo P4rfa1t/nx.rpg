@@ -1,0 +1,152 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/P4rfa1t/nx.rpg/schemas/launch-manifest.schema.json",
+  "title": "nx.rpg Launch Manifest",
+  "description": "Contract written by nx.rpg Launcher and consumed by EasyRPG, nx.js (MV/MZ), or mkxp-z cores via --nxrpg-manifest.",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "sessionId",
+    "returnTo",
+    "logPath",
+    "game"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1
+    },
+    "sessionId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "returnTo": {
+      "type": "string",
+      "description": "NRO path to invoke with envSetNextLoad when exiting the core."
+    },
+    "logPath": {
+      "type": "string",
+      "description": "SD card log file path for core diagnostics and crash summary."
+    },
+    "game": {
+      "type": "object",
+      "required": [
+        "id",
+        "title",
+        "engine",
+        "core",
+        "gamePath",
+        "contentRoot",
+        "savePath"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9._-]+$"
+        },
+        "title": {
+          "type": "string"
+        },
+        "engine": {
+          "type": "string",
+          "enum": ["rm2k", "rm2k3", "rmxp", "rmvx", "rmvxa", "rmmv", "rmmz"]
+        },
+        "core": {
+          "type": "string",
+          "enum": ["easyrpg", "nxjs-mvz", "mkxp-z"]
+        },
+        "gamePath": {
+          "type": "string"
+        },
+        "contentRoot": {
+          "type": "string",
+          "description": "Actual engine root directory (e.g. <gamePath>/www for desktop RPG Maker MV builds)."
+        },
+        "savePath": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "assets": {
+      "type": "object",
+      "properties": {
+        "rtpPath": {
+          "type": "string",
+          "default": ""
+        },
+        "fallbackFontPath": {
+          "type": "string",
+          "default": ""
+        }
+      },
+      "additionalProperties": false
+    },
+    "runtime": {
+      "type": "object",
+      "properties": {
+        "encoding": {
+          "type": "string",
+          "enum": ["auto", "utf-8", "shift_jis", "gbk", "big5", "cp949", "cp1252"],
+          "default": "auto"
+        },
+        "rgssVersion": {
+          "type": "integer",
+          "enum": [0, 1, 2, 3],
+          "default": 0,
+          "description": "Used by mkxp-z: 1=XP, 2=VX, 3=VX Ace, 0=not applicable."
+        },
+        "enableTouch": {
+          "type": "boolean",
+          "default": true
+        },
+        "enableSoftwareKeyboard": {
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "video": {
+      "type": "object",
+      "properties": {
+        "scalingMode": {
+          "type": "string",
+          "enum": ["fit", "stretch", "native"],
+          "default": "fit"
+        },
+        "integerScale": {
+          "type": "boolean",
+          "default": false
+        },
+        "vsync": {
+          "type": "boolean",
+          "default": true
+        },
+        "showFps": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "input": {
+      "type": "object",
+      "properties": {
+        "profile": {
+          "type": "string",
+          "default": "default"
+        },
+        "exitCombo": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": ["L", "R", "PLUS"]
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

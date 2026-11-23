@@ -1,0 +1,44 @@
+# Build outputs (Switch / CMake / Meson / Make)
+build/
+dist/
+out/
+*.nro
+*.elf
+*.nacp
+*.nso
+*.nsp
+*.o
+*.d
+*.a
+*.so
+
+# Upstream core checkouts (fetched via scripts/bootstrap-cores.sh)
+third_party/EasyRPG-Player/
+third_party/nx.js/
+third_party/mkxp-z/
+
+# Node / TypeScript / pnpm (nx.js & MV/MZ shim)
+node_modules/
+.pnpm-store/
+.turbo/
+*.tsbuildinfo
+
+# Local runtime / test game dumps (never commit user games or saves)
+sdcard/switch/nx.rpg/games/*
+!sdcard/switch/nx.rpg/games/.gitkeep
+sdcard/switch/nx.rpg/saves/*
+!sdcard/switch/nx.rpg/saves/.gitkeep
+sdcard/switch/nx.rpg/rtp/*/*
+!sdcard/switch/nx.rpg/rtp/*/.gitkeep
+sdcard/switch/nx.rpg/fonts/*
+!sdcard/switch/nx.rpg/fonts/.gitkeep
+sdcard/switch/nx.rpg/cores/*
+!sdcard/switch/nx.rpg/cores/.gitkeep
+sdcard/switch/nx.rpg/runtime/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.log

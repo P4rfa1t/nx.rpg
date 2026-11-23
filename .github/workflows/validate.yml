@@ -1,0 +1,29 @@
+name: Validate Layout & Schemas
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate JSON files and schemas
+        run: |
+          python3 -c '
+          import glob, json, sys
+          files = sorted(glob.glob("common/schemas/*.json") + glob.glob("sdcard/**/*.json", recursive=True))
+          assert files, "No JSON files found"
+          for path in files:
+              with open(path, "r", encoding="utf-8") as f:
+                  json.load(f)
+              print(f"OK: {path}")
+          '
+
+      - name: Check shell script syntax
+        run: |
+          bash -n scripts/check-env.sh
+          bash -n scripts/bootstrap-cores.sh
