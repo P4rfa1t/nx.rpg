@@ -22,6 +22,7 @@ git config --global --add safe.directory "$NXJS_DIR" >/dev/null 2>&1 || true
 # patches always take effect (build-from-clean; upstream HEAD is the base).
 echo ">>> Resetting nx.js tree to upstream HEAD for clean patch application..."
 git -C "$NXJS_DIR" reset --hard -q HEAD
+git -C "$NXJS_DIR" clean -fdq
 bash "$ROOT_DIR/scripts/apply-patches.sh" nxjs-mvz
 
 # Step 1: Build patched nx.js runtime + nxjs.nro if switch-v8 is present

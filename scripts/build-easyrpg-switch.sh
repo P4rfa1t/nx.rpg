@@ -25,6 +25,7 @@ git config --global --add safe.directory "$EASYRPG_DIR" >/dev/null 2>&1 || true
 # patches always take effect (build-from-clean; upstream HEAD is the base).
 echo ">>> Resetting EasyRPG tree to upstream HEAD for clean patch application..."
 git -C "$EASYRPG_DIR" reset --hard -q HEAD
+git -C "$EASYRPG_DIR" clean -fdq
 bash "$ROOT_DIR/scripts/apply-patches.sh" easyrpg
 
 cmake -S "$EASYRPG_DIR" -B "$BUILD_DIR" -G Ninja \

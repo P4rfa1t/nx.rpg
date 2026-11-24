@@ -28,6 +28,7 @@ git config --global --add safe.directory "$MKXP_DIR" >/dev/null 2>&1 || true
 # onto an already-patched tree would fail with "already exists").
 echo ">>> Resetting mkxp-z tree to upstream HEAD..."
 git -C "$MKXP_DIR" reset --hard -q HEAD
+git -C "$MKXP_DIR" clean -fdq
 
 # Stage into container-local tmpfs for fast Meson subproject extraction/patching
 rm -rf "$SRC_STAGE" "$BUILD_DIR" "$ROMFS_STAGE"
