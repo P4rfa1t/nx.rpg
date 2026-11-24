@@ -67,7 +67,7 @@ int main() {
     nxrpg::test::write_bytes(d / "Game.exe", "MZ");
     nxrpg::test::write_bytes(d / "WWW/JS/RPG_CORE.JS", "// mv");
     nxrpg::test::write_bytes(
-        d / "www/data/System.json",
+        d / "WWW/data/System.json",
         R"({"gameTitle":"\\C[1]MV Desktop","hasEncryptedImages":true,"encryptionKey":"abc"})");
 
     auto det = EngineDetector::inspect_directory(d);
