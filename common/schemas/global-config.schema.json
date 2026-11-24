@@ -1,0 +1,131 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/P4rfa1t/nx.rpg/schemas/global-config.schema.json",
+  "title": "nx.rpg Global Configuration",
+  "description": "Global defaults stored at sdmc:/switch/nx.rpg/config/global.json.",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "uiLanguage",
+    "defaultEncoding",
+    "warnOnAppletMode",
+    "performance",
+    "video",
+    "input",
+    "library"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1
+    },
+    "uiLanguage": {
+      "type": "string",
+      "enum": ["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"],
+      "default": "zh-CN"
+    },
+    "defaultEncoding": {
+      "type": "string",
+      "enum": ["auto", "utf-8", "shift_jis", "gbk", "big5", "cp949", "cp1252"],
+      "default": "auto"
+    },
+    "fallbackFontPath": {
+      "type": "string",
+      "default": "sdmc:/switch/nx.rpg/fonts/NotoSansCJK-Regular.ttc"
+    },
+    "warnOnAppletMode": {
+      "type": "boolean",
+      "default": true,
+      "description": "Warn before launching RAM-intensive cores (nxjs-mvz, mkxp-z) when running in ~440 MB Applet Mode."
+    },
+    "performance": {
+      "type": "object",
+      "required": ["defaultCpuProfile"],
+      "properties": {
+        "defaultCpuProfile": {
+          "type": "string",
+          "enum": ["stock_1020", "boost_1581", "boost_1785"],
+          "default": "stock_1020",
+          "description": "Switch CPU clock profile via clkrst/pcv (1020 MHz stock, 1581 MHz medium boost, 1785 MHz max safe boost)."
+        }
+      },
+      "additionalProperties": false
+    },
+    "video": {
+      "type": "object",
+      "required": ["scalingMode", "integerScale", "vsync", "showFps"],
+      "properties": {
+        "scalingMode": {
+          "type": "string",
+          "enum": ["fit", "stretch", "native"],
+          "default": "fit"
+        },
+        "integerScale": {
+          "type": "boolean",
+          "default": false
+        },
+        "vsync": {
+          "type": "boolean",
+          "default": true
+        },
+        "showFps": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "input": {
+      "type": "object",
+      "required": ["profile", "enableTouch", "exitCombo"],
+      "properties": {
+        "profile": {
+          "type": "string",
+          "default": "default"
+        },
+        "swapConfirmCancel": {
+          "type": "boolean",
+          "default": false,
+          "description": "If true, map B to Confirm and A to Cancel (Xbox/Western layout) instead of Switch default A=Confirm, B=Cancel."
+        },
+        "enableTouch": {
+          "type": "boolean",
+          "default": true
+        },
+        "exitCombo": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "string",
+            "enum": ["A", "B", "X", "Y", "L", "R", "ZL", "ZR", "PLUS", "MINUS", "LSTICK", "RSTICK"]
+          },
+          "default": ["L", "R", "PLUS"]
+        }
+      },
+      "additionalProperties": false
+    },
+    "library": {
+      "type": "object",
+      "required": ["maxScanDepth", "sortOrder"],
+      "properties": {
+        "maxScanDepth": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4,
+          "default": 2
+        },
+        "sortOrder": {
+          "type": "string",
+          "enum": ["recent", "title", "engine"],
+          "default": "recent"
+        },
+        "lastSelectedGameId": {
+          "type": "string",
+          "default": ""
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

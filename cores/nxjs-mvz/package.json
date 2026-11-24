@@ -1,0 +1,24 @@
+{
+  "name": "nxjs-mvz",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "nx.rpg RPG Maker MV & MZ runtime core powered by TooTallNate/nx.js",
+  "author": "nx.rpg contributors",
+  "nacp": {
+    "id": "016e787270670001",
+    "title": "nx.rpg MV/MZ Core",
+    "userAccountSaveDataSize": 0
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "package:nro": "NXJS_FAT=1 nxjs-nro --fat"
+  },
+  "devDependencies": {
+    "@nx.js/clkrst": "^0.0.14",
+    "@nx.js/constants": "^0.0.14",
+    "@nx.js/nro": "^0.0.70",
+    "@nx.js/runtime": "^0.0.70",
+    "typescript": "^5.6.3"
+  }
+}

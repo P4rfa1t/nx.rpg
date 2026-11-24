@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-11-24",
+  "cores": {
+    "easyrpg": {
+      "name": "EasyRPG Player",
+      "repoUrl": "https://github.com/EasyRPG/Player.git",
+      "branch": "master",
+      "commit": "a99ca834b8560f6a39a4df5de2d3972523ba2f30",
+      "checkoutDir": "third_party/EasyRPG-Player",
+      "patchSeries": "cores/easyrpg/patches/SERIES",
+      "license": "GPL-3.0-or-later",
+      "buildSystem": "cmake",
+      "outputNro": "cores/easyrpg.nro",
+      "toolchainNotes": "Uses $DEVKITPRO/cmake/Switch.cmake (preset switch-release) + liblcf >= 0.8.1 + EGL/glad + libnx audout."
+    },
+    "nxjs-mvz": {
+      "name": "nx.js",
+      "repoUrl": "https://github.com/TooTallNate/nx.js.git",
+      "branch": "main",
+      "commit": "462203af39179fb630ae7fe981f3361b7147cdfb",
+      "checkoutDir": "third_party/nx.js",
+      "patchSeries": "cores/nxjs-mvz/patches/SERIES",
+      "license": "MIT",
+      "buildSystem": "make+pnpm",
+      "outputNro": "cores/nxjs-mvz.nro",
+      "toolchainNotes": "Requires switch-v8 >= 15.0.243-9 (fixes full-JIT GC W^X Data Aborts). Package with NXJS_FAT=1 (--fat) and userAccountSaveDataSize=0."
+    },
+    "mkxp-z": {
+      "name": "mkxp-z",
+      "repoUrl": "https://github.com/mkxp-z/mkxp-z.git",
+      "branch": "dev",
+      "commit": "a8f9d9ee331034b7778d0f6c3a5603de8b87388f",
+      "checkoutDir": "third_party/mkxp-z",
+      "patchSeries": "cores/mkxp-z/patches/SERIES",
+      "license": "GPL-2.0-or-later",
+      "buildSystem": "meson",
+      "outputNro": "cores/mkxp-z.nro",
+      "toolchainNotes": "Meson >= 1.4.0 cross-compiled with cores/mkxp-z/cross/switch-aarch64.ini, gfx_backend=gles, use_miniffi=false, static Ruby MRI 3.1."
+    }
+  }
+}

@@ -1,0 +1,20 @@
+# Required static C extensions for RGSS1 / RGSS2 / RGSS3 + CJK encodings on Nintendo Switch
+# Consumed during Phase 3a Ruby MRI 3.1 `--with-ext=...` static build.
+
+stringio
+zlib
+fiber
+monitor
+etc
+enc/encdb
+enc/trans/transdb
+enc/utf_16le
+enc/utf_16be
+enc/shift_jis
+enc/windows_31j
+enc/gbk
+enc/gb18030
+enc/big5
+enc/cp949
+enc/euc_jp
+enc/euc_kr

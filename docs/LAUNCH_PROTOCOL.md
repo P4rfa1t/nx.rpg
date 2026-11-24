@@ -1,48 +1,59 @@
-# Launcher ↔ Core 启动协议规范（Launch Protocol）
+# Launcher ↔ Core 启动协议与配置合并规范（Launch Protocol）
 
-为了在 `nx.rpg.nro`（主前端）与三个独立核心 `.nro` 之间建立稳定、松耦合、可扩展的通信契约，所有核心统一遵循本启动协议。
-
----
-
-## 1. 通信机制
-
-Switch 的 `envSetNextLoad(path, argv)` 对 `argv` 长度存在限制，且包含中文/空格的游戏路径在命令行转义上容易出错。因此采用 **“极简 `argv` + JSON 启动清单文件”** 的双层机制：
-
-1. Launcher 将完整启动参数写入固定路径：
-   ```text
-   sdmc:/switch/nx.rpg/runtime/launch.json
-   ```
-2. Launcher 调用：
-   ```c
-   envSetNextLoad(
-     "sdmc:/switch/nx.rpg/cores/<core>.nro",
-     "sdmc:/switch/nx.rpg/cores/<core>.nro --nxrpg-manifest sdmc:/switch/nx.rpg/runtime/launch.json"
-   );
-   ```
-3. 目标核心启动时检查 `--nxrpg-manifest <path>` 参数：
-   - **若存在**：解析该 JSON 清单，直接以清单指定配置启动游戏，并在游戏退出时自动通过 `envSetNextLoad(returnTo, ...)` 返回 Launcher。
-   - **若不存在**（例如用户直接从 hbmenu 单独启动某个核心）：核心仍可按自身默认行为或提示单独运行，不强制报错崩溃。
+本文档定义 `nx.rpg.nro`（Borealis 前端）如何将三层用户配置合并为 `runtime/launch.json`，以及各核心 `.nro` 的精确启动与链式返回契约。
 
 ---
 
-## 2. `launch.json` 示例
+## 1. 三层配置合并优先级（Config Merger）
 
-完整字段校验规则见 [common/schemas/launch-manifest.schema.json](../common/schemas/launch-manifest.schema.json)。
+每次启动游戏前，`nxrpg::ConfigMerger` 按从低到高的优先级解析最终参数：
+
+```text
+[1. 引擎内置推荐默认值]  (如 rmmv/rmmz 默认 utf-8；rmxp rgssVersion=1)
+          │
+          ▼ 覆写
+[2. 全局配置 config/global.json]  (Schema: common/schemas/global-config.schema.json)
+          │
+          ▼ 覆写
+[3. 单游戏配置 config/games/<id>.json]  (Schema: common/schemas/game-config.schema.json)
+          │
+          ▼ 输出（经原子写 .tmp + fsync + rename）
+[4. 瞬时启动清单 runtime/launch.json]  (Schema: common/schemas/launch-manifest.schema.json)
+```
+
+---
+
+## 2. 按核心区分的 `envSetNextLoad` 参数传递规则（关键！）
+
+经核实三个上游仓库的 `main` 入口实现，**不同核心对 `argv[1]` 的语义假设不同**，因此 `nxrpg::Chainloader::format_core_argv()` 严格执行下表规则：
+
+| 目标核心 | `envSetNextLoad(path, argv)` 中的 `argv` 字符串 | 原因说明 |
+| :--- | :--- | :--- |
+| **`easyrpg`** | `"sdmc:/switch/nx.rpg/cores/easyrpg.nro --nxrpg-manifest sdmc:/switch/nx.rpg/runtime/launch.json"` | C++ `main(argc, argv)` 标准解析 `--nxrpg-manifest` |
+| **`mkxp-z`** | `"sdmc:/switch/nx.rpg/cores/mkxp-z.nro --nxrpg-manifest sdmc:/switch/nx.rpg/runtime/launch.json"` | C++ `main(argc, argv)` 标准解析 `--nxrpg-manifest` |
+| **`nxjs-mvz`** | `"sdmc:/switch/nx.rpg/cores/nxjs-mvz.nro"`（**严禁附带 `argv[1]`！**） | `nx.js` 运行时会将 `Switch.argv[1]` 当作外部入口 `.js`/`.nro` 文件路径覆盖内置 `romfs:/main.js`！不传 `argv[1]` 可确保稳定启动内置 `romfs:/main.js` 并直接读取固定路径 `sdmc:/switch/nx.rpg/runtime/launch.json` |
+
+---
+
+## 3. `launch.json` 完整标准示例（Schema v1）
+
+校验规则以 [common/schemas/launch-manifest.schema.json](../common/schemas/launch-manifest.schema.json) 为准：
 
 ```json
 {
   "schemaVersion": 1,
-  "sessionId": "20261123-214600-a1b2c3",
+  "sessionId": "20261124-120000-f4a9c2",
   "returnTo": "sdmc:/switch/nx.rpg/nx.rpg.nro",
   "logPath": "sdmc:/switch/nx.rpg/runtime/last_run.log",
   "game": {
-    "id": "demo-mv-01",
+    "id": "sample-mv-7c8d1a",
     "title": "Sample RPG MV",
     "engine": "rmmv",
     "core": "nxjs-mvz",
     "gamePath": "sdmc:/switch/nx.rpg/games/SampleMV",
     "contentRoot": "sdmc:/switch/nx.rpg/games/SampleMV/www",
-    "savePath": "sdmc:/switch/nx.rpg/saves/demo-mv-01"
+    "savePath": "sdmc:/switch/nx.rpg/saves/sample-mv-7c8d1a",
+    "execName": "Game"
   },
   "assets": {
     "rtpPath": "",
@@ -51,6 +62,7 @@ Switch 的 `envSetNextLoad(path, argv)` 对 `argv` 长度存在限制，且包�
   "runtime": {
     "encoding": "utf-8",
     "rgssVersion": 0,
+    "cpuProfile": "boost_1581",
     "enableTouch": true,
     "enableSoftwareKeyboard": true
   },
@@ -62,31 +74,38 @@ Switch 的 `envSetNextLoad(path, argv)` 对 `argv` 长度存在限制，且包�
   },
   "input": {
     "profile": "default",
+    "swapConfirmCancel": false,
     "exitCombo": ["L", "R", "PLUS"]
+  },
+  "coreOptions": {
+    "mvz": {
+      "renderer": "auto",
+      "pretendNwjs": true,
+      "maxTextureSize": 4096
+    }
   }
 }
 ```
 
 ---
 
-## 3. 核心返回协议（Core → Launcher）
+## 4. 核心退出与返回协议（Core → Launcher）
 
-当用户通过游戏内退出菜单或全局组合键（`exitCombo`）退出游戏时，核心必须按以下顺序收尾：
+当玩家通过游戏内“退出”选项或按下 `input.exitCombo`（默认 `L + R + PLUS`）退出游戏时，核心必须按严格顺序执行清理：
 
-1. 确保存档缓冲区与 `logPath` 日志已 `fflush` / `fsync` 落盘。
-2. 释放音频、图形（EGL/GLES/SDL/Skia）与文件系统句柄。
-3. 若 `returnTo` 非空且文件存在，调用：
+1. **落盘屏障**：完成所有待写入存档及 `logPath` 日志的原子写入与 `fflush` / `fsync`。
+2. **频率复位**：若启动时通过 `clkrst` 调整过 CPU 频率，必须恢复为系统默认 `1020 MHz`。
+3. **释放外设与句柄**：关闭音频流（`audout` / `audren` / `OpenAL`）、图形上下文（EGL / GLES / SDL / Skia）及 `romfsExit()`。
+4. **注册回跳**：若 `manifest.returnTo` 非空且目标文件存在，调用：
    ```c
    envSetNextLoad(manifest.returnTo, "sdmc:/switch/nx.rpg/nx.rpg.nro --from-core");
    ```
-4. 正常 `return 0` 退出主函数，由 Homebrew Loader 接管并重新启动 `nx.rpg.nro`。
+5. **退出进程**：正常退出 `main`（或调用 `Switch.exit()`）。
 
-### 异常日志约定
+### 标准致命异常日志头
 
-若核心因致命错误（如缺失关键数据文件、脚本未捕获异常、内存不足）中止运行，应在退出前向 `logPath` 写入简明错误摘要：
+若核心因未捕获异常、缺失核心数据或内存耗尽退出，须在 `logPath` 末尾写入统一格式的诊断行，供前端 `DiagnosticsTab` 自动识别并弹窗提示：
 
 ```text
-[nx.rpg][FATAL][core=nxjs-mvz][game=demo-mv-01] Uncaught ReferenceError: SomePluginAPI is not defined
+[nx.rpg][FATAL][core=mkxp-z][game=touhou-xp-91b2][code=SCRIPT_ERR] NoMethodError: undefined method `foo' for nil:NilClass
 ```
-
-Launcher 下次启动检测到 `--from-core` 或非空异常标记时，可在前端弹出友好的错误摘要卡片。

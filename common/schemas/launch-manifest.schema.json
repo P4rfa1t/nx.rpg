@@ -2,14 +2,18 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/P4rfa1t/nx.rpg/schemas/launch-manifest.schema.json",
   "title": "nx.rpg Launch Manifest",
-  "description": "Contract written by nx.rpg Launcher and consumed by EasyRPG, nx.js (MV/MZ), or mkxp-z cores via --nxrpg-manifest.",
+  "description": "Resolved contract written by nx.rpg Launcher to sdmc:/switch/nx.rpg/runtime/launch.json and consumed by EasyRPG, nxjs-mvz, or mkxp-z cores.",
   "type": "object",
   "required": [
     "schemaVersion",
     "sessionId",
     "returnTo",
     "logPath",
-    "game"
+    "game",
+    "assets",
+    "runtime",
+    "video",
+    "input"
   ],
   "properties": {
     "schemaVersion": {
@@ -37,7 +41,8 @@
         "core",
         "gamePath",
         "contentRoot",
-        "savePath"
+        "savePath",
+        "execName"
       ],
       "properties": {
         "id": {
@@ -60,16 +65,23 @@
         },
         "contentRoot": {
           "type": "string",
-          "description": "Actual engine root directory (e.g. <gamePath>/www for desktop RPG Maker MV builds)."
+          "description": "Actual engine asset root (e.g. <gamePath>/www for desktop RPG Maker MV deployments)."
         },
         "savePath": {
-          "type": "string"
+          "type": "string",
+          "description": "Isolated per-game writable save directory (sdmc:/switch/nx.rpg/saves/<id>)."
+        },
+        "execName": {
+          "type": "string",
+          "default": "Game",
+          "description": "Stem name of renamed .ini/.rgssad/.rgss2a/.rgss3a files (default 'Game')."
         }
       },
       "additionalProperties": false
     },
     "assets": {
       "type": "object",
+      "required": ["rtpPath", "fallbackFontPath"],
       "properties": {
         "rtpPath": {
           "type": "string",
@@ -84,6 +96,13 @@
     },
     "runtime": {
       "type": "object",
+      "required": [
+        "encoding",
+        "rgssVersion",
+        "cpuProfile",
+        "enableTouch",
+        "enableSoftwareKeyboard"
+      ],
       "properties": {
         "encoding": {
           "type": "string",
@@ -95,6 +114,11 @@
           "enum": [0, 1, 2, 3],
           "default": 0,
           "description": "Used by mkxp-z: 1=XP, 2=VX, 3=VX Ace, 0=not applicable."
+        },
+        "cpuProfile": {
+          "type": "string",
+          "enum": ["stock_1020", "boost_1581", "boost_1785"],
+          "default": "stock_1020"
         },
         "enableTouch": {
           "type": "boolean",
@@ -109,6 +133,7 @@
     },
     "video": {
       "type": "object",
+      "required": ["scalingMode", "integerScale", "vsync", "showFps"],
       "properties": {
         "scalingMode": {
           "type": "string",
@@ -132,17 +157,63 @@
     },
     "input": {
       "type": "object",
+      "required": ["profile", "swapConfirmCancel", "exitCombo"],
       "properties": {
         "profile": {
           "type": "string",
           "default": "default"
         },
+        "swapConfirmCancel": {
+          "type": "boolean",
+          "default": false
+        },
         "exitCombo": {
           "type": "array",
+          "minItems": 2,
           "items": {
-            "type": "string"
+            "type": "string",
+            "enum": ["A", "B", "X", "Y", "L", "R", "ZL", "ZR", "PLUS", "MINUS", "LSTICK", "RSTICK"]
           },
           "default": ["L", "R", "PLUS"]
+        }
+      },
+      "additionalProperties": false
+    },
+    "coreOptions": {
+      "type": "object",
+      "description": "Engine-family-specific options merged from global defaults and per-game config.",
+      "properties": {
+        "easyrpg": {
+          "type": "object",
+          "properties": {
+            "soundfontPath": { "type": "string", "default": "" },
+            "disableRtp": { "type": "boolean", "default": false }
+          },
+          "additionalProperties": false
+        },
+        "mvz": {
+          "type": "object",
+          "properties": {
+            "renderer": {
+              "type": "string",
+              "enum": ["auto", "webgl2", "canvas2d"],
+              "default": "auto"
+            },
+            "pretendNwjs": { "type": "boolean", "default": true },
+            "maxTextureSize": { "type": "integer", "enum": [0, 2048, 4096], "default": 4096 }
+          },
+          "additionalProperties": false
+        },
+        "mkxp": {
+          "type": "object",
+          "properties": {
+            "enableWin32ApiStubs": { "type": "boolean", "default": true },
+            "solidFonts": { "type": "boolean", "default": false },
+            "smoothScaling": { "type": "integer", "enum": [0, 1, 2, 3, 4], "default": 0 },
+            "frameSkip": { "type": "boolean", "default": false },
+            "subImageFix": { "type": "boolean", "default": false }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false

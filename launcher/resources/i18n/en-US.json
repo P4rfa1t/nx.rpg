@@ -1,0 +1,19 @@
+{
+  "app": {
+    "title": "nx.rpg",
+    "subtitle": "Multi-Engine RPG Maker Runner for Nintendo Switch",
+    "applet_warning": "Running in Applet Mode (~440 MB RAM): MV/MZ and large XP/VX/VXAce games may fail due to RAM or WASM JIT limits. Hold R while launching any title for Application (Title Takeover) mode."
+  },
+  "tabs": {
+    "library": "All Games",
+    "recent": "Recent",
+    "diagnostics": "Environment & Logs",
+    "settings": "Global Settings"
+  },
+  "actions": {
+    "launch": "Launch Game",
+    "per_game_settings": "Game Settings",
+    "rescan": "Rescan Library",
+    "view_last_log": "View Last Run Log"
+  }
+}

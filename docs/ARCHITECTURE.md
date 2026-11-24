@@ -1,133 +1,105 @@
 # nx.rpg 系统架构设计
 
-本文档定义 `nx.rpg` 在 Nintendo Switch（Horizon OS / `libnx`）上的整体系统架构、进程模型、内存管理策略与 SD 卡目录规范。
+本文档定义 `nx.rpg` 在 Nintendo Switch（Horizon OS / `libnx`）上的整体系统架构、进程模型、内存与 CPU 调频策略以及 SD 卡目录规范。
 
 ---
 
 ## 1. 设计目标
 
-1. **一站式体验**：用户只需将任意世代的 RPG Maker 游戏目录放入 `sdmc:/switch/nx.rpg/games/`，前端即可自动识别引擎版本并调度对应核心运行。
-2. **高兼容性优先**：复用三个社区最活跃、兼容性最好的成熟核心，尽量少魔改上游核心源码，通过补丁队列（`patches/`）与适配层维持长期可同步性。
-3. **Switch 原生友好**：全面支持 Joy-Con / Pro 手柄、触屏（尤其是 MV/MZ 触控交互）、休眠恢复、系统软键盘（输入主角姓名等场景）与 CJK 中日韩字体回退。
-4. **严格内存与许可隔离**：针对 Switch 有限内存与不同开源协议，采用多 NRO 链式加载架构。
+1. **一站式即拷即玩**：用户只需将任意世代的 RPG Maker 游戏目录放入 `sdmc:/switch/nx.rpg/games/`，前端即可自动识别引擎版本并调度对应核心运行。
+2. **锁定基线 + 补丁队列低侵入集成**：通过 [third_party/upstreams.lock.json](../third_party/upstreams.lock.json) 精确锁定三大成熟开源核心的 Commit SHA，所有 Switch 专属改动收敛在 `cores/<core>/patches/` 与独立垫片层中。
+3. **Switch 原生交互体验**：统一前端确定采用 **C++20 + Borealis** 构建，全面支持 Joy-Con / Pro 手柄、掌机触屏（含双指取消）、系统软键盘（`swkbd` 角色起名）、CPU 按需超频（`clkrst`）与 CJK 中日韩字体回退。
+4. **严格内存、存档与许可证隔离**：采用独立可执行 `.nro` 链式跳转架构，游戏本体目录只读、存档独立原子落盘。
 
 ---
 
-## 2. 总体拓扑：Launcher + 多核心 NRO 链式加载
+## 2. 总体拓扑：Borealis 前端 + 三核心 NRO 链式加载
 
-Switch Homebrew 环境（Atmosphère `hbmenu` / `nro` loader）提供 `libnx` 标准接口 `envSetNextLoad(const char* path, const char* argv)`，允许当前 `.nro` 在退出后由 loader 立即加载另一个 `.nro`。
+Switch Homebrew 环境（Atmosphère `hbmenu` / `nro` loader）提供 `libnx` 标准接口 `envSetNextLoad(const char* path, const char* argv)`，允许当前 `.nro` 在退出后由 loader 立即加载下一个 `.nro`，且完全释放前一个进程的堆内存与 GPU 上下文。
 
 ### 运行时控制流
 
 ```text
-[用户从 Title Takeover 启动 nx.rpg.nro]
+[用户从 Title Takeover 启动 nx.rpg.nro (C++20 + Borealis)]
         │
         ▼
-┌─────────────────────────────────────────┐
-│  Launcher (nx.rpg.nro)                  │
-│  1. 检测 Applet Mode vs Full RAM Mode   │
-│  2. 扫描 sdmc:/switch/nx.rpg/games/     │
-│  3. 自动识别引擎（2k/2k3/XP/VX/VXA/MV/MZ）│
-│  4. 读取/编辑单游戏配置与全局设置         │
-└──────────────────┬──────────────────────┘
-                   │ 用户选择游戏并按下启动
-                   ▼
-   写入 sdmc:/switch/nx.rpg/runtime/launch.json
-   调用 envSetNextLoad("sdmc:/switch/nx.rpg/cores/<core>.nro", ...)
-   正常退出 Launcher 释放全部显存与内存
-                   │
-                   ▼
-┌─────────────────────────────────────────┐
-│  Core NRO (easyrpg / nxjs-mvz / mkxp-z) │
-│  1. 启动后读取 launch.json 或 argv       │
-│  2. 挂载游戏目录、独立存档目录、RTP与字体 │
-│  3. 运行游戏主循环                       │
-│  4. 用户退出游戏（或快捷键唤出退出）      │
-└──────────────────┬──────────────────────┘
-                   │
-                   ▼
-   调用 envSetNextLoad("sdmc:/switch/nx.rpg/nx.rpg.nro", "--from-core")
-   核心退出并自动返回 Launcher 界面
+┌────────────────────────────────────────────────────────┐
+│  Launcher (nx.rpg.nro)                                 │
+│  1. 检测 Application 全内存模式 vs Applet 低内存模式   │
+│  2. 读取 cache/library.json 并按目录 mtime 增量扫描    │
+│  3. 合并默认 -> global.json -> config/games/<id>.json  │
+│  4. 原子写入 runtime/launch.json                       │
+└──────────────────────────┬─────────────────────────────┘
+                           │ 调用 envSetNextLoad() 并退出释放全部 RAM/VRAM
+                           ▼
+┌────────────────────────────────────────────────────────┐
+│  Core NRO (easyrpg.nro / nxjs-mvz.nro / mkxp-z.nro)    │
+│  1. 读取 runtime/launch.json，按需应用 clkrst CPU 频率 │
+│  2. 只读访问游戏目录，挂载共享 RTP、字体与隔离存档目录 │
+│  3. 运行游戏主循环；监听游戏内退出或 L+R+PLUS 组合键   │
+│  4. 原子冲刷存档与 runtime/last_run.log，恢复默认频率  │
+└──────────────────────────┬─────────────────────────────┘
+                           │ envSetNextLoad(".../nx.rpg.nro", "... --from-core")
+                           ▼
+             [0.5s 内返回 Borealis 前端并恢复原卡片焦点]
 ```
 
-### 前端（Launcher）技术选型建议
+> **重要细节（`nx.js` 参数特殊性）**：`TooTallNate/nx.js` 会将 `Switch.argv[1]` 解析为入口 JS 脚本覆盖路径（而非普通参数标志）。因此 `Chainloader` 在跳转 `easyrpg.nro` 与 `mkxp-z.nro` 时传入 `--nxrpg-manifest <path>`，而在跳转自包含打包（`--fat`）的 `nxjs-mvz.nro` 时**不传 `argv[1]`**，由内置的 `romfs:/main.js` 直接读取固定路径 `sdmc:/switch/nx.rpg/runtime/launch.json`。
 
-| 方案 | 优点 | 缺点 | 结论 |
+---
+
+## 3. Switch 内存制度、V8 JIT/WASM 与 CPU 调频策略
+
+### 3.1 Applet Mode vs Application (Title Takeover) Mode
+
+| 运行模式 | 可用物理内存 | V8 JIT / WebAssembly 状态 | 各核心运行策略 |
 | :--- | :--- | :--- | :--- |
-| **方案 A：C++ + Borealis（Switch 原生风格 UI）** | 极低内存占用、启动极快（<1 秒）、天然契合 Switch 手柄导航与主题风格、C++ 直接复用游戏扫描逻辑 | 需维护独立 C++ UI 代码 | **推荐（首选）** |
-| **方案 B：基于 nx.js (Canvas/TS) 编写前端** | UI 开发效率高、与 MV/MZ 核心共享工具链 | 每次返回前端需重新冷启动 V8 + Skia，切换延迟略高 | 备选（适合原型验证） |
+| **Application Mode**<br>（按住 `R` 启动任意游戏 / NSP Forwarder） | **~3.2 GiB – 3.5 GiB** | **允许 W^X JIT**（`switch-v8 >= 15.0.243-9` 下对象堆上限 `512 MiB`，`ArrayBuffer` 走数 GiB `newlib` 堆；**MZ 的 `effekseer.wasm` 正常编译执行**） | **全部三大核心满血推荐模式** |
+| **Applet Mode**<br>（从系统相册进入 `hbmenu`） | **~440 MiB** | **强制 `jitless` 无 JIT 模式**（V8 对象堆上限约 `89 MiB`，WebAssembly 受限） | `easyrpg` 可正常运行；启动 `nxjs-mvz` 或 `mkxp-z` 前前端弹出强告警拦截框（允许知情继续或返回重进） |
 
-> 在 Phase 1 初期可先完成极简 C++ 启动器验证链式加载与引擎识别；待核心跑通后再迭代 Borealis 完整封面墙 UI。
+### 3.2 按需 CPU 频率档位（`clkrst` / `pcv`）
 
----
+部分重度插件化的 RPG Maker MV/MZ 地图或高分辨率立绘 XP/VXAce 同人游戏在 Switch 默认 `1020 MHz` CPU 频率下会出现掉帧。`nx.rpg` 提供三档安全频率策略（退出核心前强制复位至 `1020 MHz`）：
 
-## 3. Switch 内存模型与 Applet Mode 处理
-
-Switch Homebrew 存在两种启动上下文：
-
-- **Applet Mode（相册启动）**：可用内存约 **440 MB**。
-  - `EasyRPG Player`（RM2000/2003）通常可以运行。
-  - `nx.js`（V8 引擎 + Skia GPU + WebGL2 + MV/MZ 贴图）及 `mkxp-z`（Ruby MRI + 大量 RPG Maker XP/VXA 高清立绘缓存）在 Applet Mode 下极易触发 OOM 崩溃。
-- **Application / Title Takeover Mode（按住 R 键启动任意正版/安装游戏，或通过独立 Forwarder NSP）**：可用内存约 **3.2 GB ~ 3.5 GB**。
-
-### 架构约束
-
-1. Launcher 启动时调用 `appletGetAppletType()` 检测运行模式：
-   - 若为 `AppletType_LibraryApplet` / `AppletType_SystemApplet`，在界面顶部常驻醒目提示条，并在启动 `nxjs-mvz` 或 `mkxp-z` 游戏前弹出明确警告（允许用户知情继续或退出改用 Title Takeover）。
-2. 各核心在启动时依据当前可用堆空间动态配置缓存上限（例如 `nx.js` 的 V8 Heap Sizing 与纹理缓存上限、`mkxp-z` 的 Bitmap 回收阈值）。
+- `stock_1020`：`1020 MHz`（系统默认，最省电，适合 RM2000/2003 与轻量作品）
+- `boost_1581`：`1581 MHz`（均衡超频档，显著改善 MV/MZ 切图加载与复杂并行事件卡顿）
+- `boost_1785`：`1785 MHz`（Switch 官方芯片最高安全频率，适合重度特效 MZ / 大型 RGSS 脚本作品）
 
 ---
 
-## 4. Switch 图形、音频与输入栈对比
+## 4. 三大核心真实底层技术栈矩阵（经源码核实）
 
-三个核心各自拥有独立的底层后端，由独立 NRO 进程隔离，避免上下文冲突：
-
-| 子系统 | EasyRPG Player | nx.js (MV / MZ) | mkxp-z (XP / VX / VXAce) |
+| 子系统 | EasyRPG Player (`easyrpg.nro`) | nx.js + Shim (`nxjs-mvz.nro`) | mkxp-z (`mkxp-z.nro`) |
 | :--- | :--- | :--- | :--- |
-| **图形渲染** | SDL2 / Software Renderer | Skia GPU（Canvas2D）+ GLES3（WebGL2） | SDL2 + OpenGL ES 2 (`gfx_backend=gles`) / Mesa EGL |
-| **音频输出** | SDL2 / libnx audren + WildMIDI / FluidSynth / FMMidi | Web Audio API + FFmpeg + `audren` | OpenAL Soft + SDL_sound + Vorbis / Ogg / FluidSynth |
-| **脚本虚拟机** | 内置 LCF 事件解释器（C++） | V8 JavaScript Engine + WASM | Ruby MRI 3.1（静态链接 `libruby`） |
-| **输入方式** | Joy-Con / Pro 手柄 + 触屏 | Gamepad API + 触屏（映射鼠标/触摸）+ 软键盘 | SDL2 GameController + 虚拟键盘映射 + 触屏辅助 |
+| **锁定上游提交** | `a99ca834...` (`master`) | `462203af...` (`main`) | `a8f9d9ee...` (`dev`, v2.4.2) |
+| **图形渲染后端** | **原生 EGL / OpenGL + `glad`**（`src/platform/switch/ui.cpp`） | **Skia GPU（Canvas2D）+ 原生 GLES3（WebGL2）**（`screen` 单上下文切换） | **SDL2 + Mesa EGL / OpenGL ES 2**（`gfx_backend=gles`） |
+| **音频输出后端** | **原生 `libnx` `audout`**（48 kHz 16-bit 双缓冲线程）+ WildMIDI/FluidSynth/FMMidi | **Web Audio API + FFmpeg + `audren`** | **OpenAL Soft** + `SDL_sound` + Ogg/Vorbis + FluidSynth |
+| **脚本/逻辑虚拟机** | C++ LCF 事件解释器（`liblcf >= 0.8.1`） | **V8 JavaScript 引擎**（`>= 15.0.243-9`）+ WebAssembly | **Ruby MRI 3.1**（静态链接 `libruby-static.a` + `arm64` 协程） |
+| **大小写兼容机制** | 上游 `DirectoryTree` 原生小写缓存 | `shim/src/vfs/` 启动时构建全量小写映射表 | 上游 `pathCache: true` 原生内置 |
+| **存档隔离方式** | 原生 `--save-path` 参数 | 关闭 NACP 账户存档 + 自定义 SD `localStorage` 与 `nwjs` `fs` 重定向 | 预加载脚本 `00_nxrpg_save_redirect.rb` 拦截重定向 |
 
 ---
 
-## 5. SD 卡目录布局规范
-
-所有运行时文件统一收敛于 `sdmc:/switch/nx.rpg/` 下，方便用户备份、迁移与清理：
+## 5. SD 卡标准目录树（`sdmc:/switch/nx.rpg/`）
 
 ```text
 sdmc:/switch/nx.rpg/
-├── nx.rpg.nro                  # 主前端 Launcher
+├── nx.rpg.nro                  # 主前端 Launcher (C++20 + Borealis)
 ├── cores/
 │   ├── easyrpg.nro             # RM 2000 / 2003 核心
-│   ├── nxjs-mvz.nro            # RM MV / MZ 核心（内置 MV/MZ Shim 包）
+│   ├── nxjs-mvz.nro            # RM MV / MZ 核心 (--fat 自包含打包)
 │   └── mkxp-z.nro              # RM XP / VX / VX Ace 核心
-├── games/                      # 用户放置游戏目录（支持一层或多层子目录扫描）
-│   ├── MyRM2003Game/
-│   ├── MyXPGame/
-│   └── MyMZGame/
-├── saves/                      # 按 gameId 隔离的存档目录（防止污染原游戏目录，便于云/本地备份）
-│   └── <game_id>/
-├── rtp/                        # 共享 RTP 资产池（大幅节省 SD 卡空间）
-│   ├── rm2000/
-│   ├── rm2003/
-│   ├── rmxp/
-│   ├── rmvx/
-│   └── rmvxa/
-├── fonts/                      # 全局 CJK 回退字体（如 NotoSansCJK / WenQuanYi）
+├── games/                      # 用户只读游戏库目录（支持 1~2 层子目录分类存放）
+├── saves/                      # 按 <game_id> 完全隔离的独立存档目录（原子写保护）
+├── rtp/                        # 5 代共享 RTP 资产池（rm2000 / rm2003 / rmxp / rmvx / rmvxa）
+├── fonts/                      # 全局 CJK 回退字体（如 NotoSansCJK-Regular.ttc）
+├── cache/
+│   ├── library.json            # 基于目录 mtime 的增量扫描元数据缓存
+│   └── covers/                 # 预缩放的游戏封面缩略图缓存 (<game_id>.jpg)
 ├── config/
-│   ├── global.json             # 全局默认设置（语言、显示比例、快捷键、默认编码）
-│   └── games/
-│       └── <game_id>.json      # 单游戏覆写配置（按键映射、编码、插件开关、缩放模式）
+│   ├── global.json             # 全局配置（见 global-config.schema.json）
+│   └── games/                  # 单游戏覆写配置（<game_id>.json，见 game-config.schema.json）
 └── runtime/
-    ├── launch.json             # Launcher -> Core 瞬时启动清单
-    └── last_run.log            # 最近一次核心运行日志（用于排错与前端展示错误原因）
+    ├── launch.json             # Launcher -> Core 瞬时启动清单（见 launch-manifest.schema.json）
+    └── last_run.log            # 最近一次核心运行与崩溃诊断日志
 ```
-
----
-
-## 6. 公共能力规划
-
-- **全局退出与菜单手势**：统一约定退出/唤出核心菜单的组合键（例如 `L + R + Plus` 或 `ZL + ZR + Minus`），保证从任意核心都能平滑返回 `nx.rpg.nro`。
-- **编码与 CJK 字体治理**：大量中文/日文 RPG Maker 2000/2003/XP/VX/VXAce 游戏依赖 `Shift_JIS`、`GBK`、`Big5`、`CP949` 编码及 Windows 系统字体（如 MS Gothic / 宋体 / 黑体）。系统将提供统一的字符集检测与 `fonts/` 回退字体注入。
-- **日志回传**：核心发生脚本异常或资源缺失时写入 `runtime/last_run.log`，返回 Launcher 后可一键查看最近崩溃日志，极大降低 Switch 实机调试成本。

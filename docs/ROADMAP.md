@@ -1,92 +1,71 @@
 # nx.rpg 分阶段开发路线图（Roadmap）
 
-为了尽早在 Switch 实机/模拟器上跑通端到端链路，开发严格按照 **“由易到难、先通闭环再攻硬骨头”** 的顺序推进：
-**基础设施 → EasyRPG（原生支持） → nx.js + MV/MZ（补齐 Web/DOM Shim） → mkxp-z（交叉编译 + Ruby MRI 移植） → 统一体验打磨**。
+开发遵循 **“契约先行、由易到难、宿主机可测优先”** 的工程演进路线：
+**Phase 0（架构与契约骨架） → Phase 1（公共库 + Borealis 前端 MVP + EasyRPG 闭环） → Phase 2（nx.js + MV/MZ Shim） → Phase 3（mkxp-z + 静态 Ruby MRI 移植） → Phase 4/5（全功能体验与合规发布流水线）**。
 
 ---
 
-## Phase 0：项目布局、架构与规范（当前阶段）
+## Phase 0：项目架构、契约 Schema 与子模块骨架（已完成）
 
-- [x] 确立多 NRO 链式加载架构与开源许可证隔离原则
-- [x] 建立仓库目录骨架、SD 卡目录模板与顶层 `Makefile`
-- [x] 定义 7 代 RPG Maker 自动识别规则（`ENGINE_DETECTION.md`）
-- [x] 定义 Launcher ↔ Core 启动协议与 JSON Schema（`LAUNCH_PROTOCOL.md`、`common/schemas/`）
-- [x] 完成三大核心的专项移植与集成方案文档
-- [ ] 搭建 GitHub Actions devkitPro 容器化基础构建 CI
-
----
-
-## Phase 1：最小前端（Launcher MVP）与 EasyRPG 核心闭环
-
-**目标**：验证 `nx.rpg.nro` → 扫描识别游戏 → 写入 `launch.json` → `envSetNextLoad()` → 启动 `easyrpg.nro` → 游玩 RM2000/2003 → 退出自动返回 `nx.rpg.nro` 的完整链路。
-
-- [ ] 实现 `common` 模块：7 代 RPG Maker 自动检测器 + `launch.json` 读写库
-- [ ] 实现 Launcher MVP（列表展示、引擎标识、Applet Mode 检测、链式加载触发）
-- [ ] 接入 `EasyRPG/Player`（使用其官方 `switch-release` CMake Preset 构建）
-- [ ] 编写 EasyRPG 轻量补丁：支持读取 `launch.json`（游戏路径、独立存档路径、RTP 路径、指定字符编码）及退出时 `envSetNextLoad` 返回 `nx.rpg.nro`
-- [ ] 实机/模拟器验收：至少跑通 1 款 RM2000 与 1 款 RM2003（含中文/日文文本与 RTP 依赖）游戏
+- [x] 确立 Borealis 统一前端 + 三大独立 `.nro` 核心链式加载隔离架构
+- [x] 建立全部 5 份 JSON Schema（`global-config`、`game-config`、`launch-manifest`、`library-cache`、`upstreams-lock`）及自动化校验脚本 `scripts/validate-repo.py`
+- [x] 建立 `third_party/upstreams.lock.json`，精确锁定三大上游仓库 Commit SHA 与补丁队列目录 `cores/*/patches/SERIES`
+- [x] 完成 `common/`（C++20 公共接口声明）、`launcher/`（C++20 + Borealis 视图与服务骨架）、`cores/*`（CMake/Meson/TS/Ruby 预加载骨架）与 `tests/` 目录布局
+- [x] 完成架构、7 代引擎检测、启动协议、输入/触控/软键盘、文件系统/加密/存档隔离、构建与 GPL 合规 CI 全套规范文档
 
 ---
 
-## Phase 2：nx.js 核心与 RPG Maker MV / MZ 运行时适配
+## Phase 1：C++20 公共库、Borealis 前端 MVP 与 EasyRPG 闭环
 
-**目标**：基于 `TooTallNate/nx.js`（V8 + Skia GPU + WebGL2 + Web Audio + WASM）实现可运行的 MV 与 MZ 兼容层。
+**目标**：在宿主机跑通引擎识别单测，并在 Switch 实机/模拟器打通 `nx.rpg.nro` ↔ `cores/easyrpg.nro` 完整往返闭环。
 
-- [ ] 接入 `TooTallNate/nx.js` 构建流程，输出 `cores/nxjs-mvz.nro`
-- [ ] 构建 `cores/nxjs-mvz/shim/` 核心浏览环境垫片：
-  - `window` / `document` / DOM 节点最小实现（含 `<canvas>`, `<img>`, `<audio>`, `<video>`, `<script>` 动态加载）
-  - `XMLHttpRequest` / `fetch` 重定向至 `sdmc:/` 本地游戏目录（支持大小写不敏感路径回退）
-  - `localStorage` 与 `NW.js` (`require('fs')`, `require('path')`, `process.mainModule`) 兼容层，对接 `saves/<game_id>/`
-  - `@font-face` / `FontFace` / `document.fonts` 加载游戏内 `fonts/` 与全局 CJK 回退字体
-  - Joy-Con / Pro 手柄 → RPG Maker 键盘按键映射 + 触屏 → `TouchEvent` / `MouseEvent` 映射
-- [ ] **MV 里程碑**：跑通标准 RPG Maker MV 工程（PixiJS v4 WebGL/Canvas、BGM/SE 播放、存读档）
-- [ ] **MZ 里程碑**：跑通标准 RPG Maker MZ 工程（PixiJS v5 WebGL2、Effekseer WASM 特效、存读档）
-- [ ] 针对常见主流插件（YEP / VisuStella / Galv / 菜单/文字插件）建立兼容测试用例与缺失 API 补齐清单
+- [ ] 实现 `common/src/`：
+  - 7 代引擎识别器（含 MV `www/` 剥离、重命名 `execName` 推断、INI/LDB/JSON 标题解码）
+  - 三层配置合并器 `ConfigMerger`、原子文件写入 `write_file_atomic` 与 `Chainloader`
+- [ ] 实现 `tests/` 宿主机 CMake 单测套件并接入 `.github/workflows/validate.yml`
+- [ ] 实现 `launcher/src/` MVP（Borealis 游戏卡片列表、`cache/library.json` 增量缓存、Applet 模式检测横幅、单游戏编码/缩放快速设置、`--from-core` 焦点恢复）
+- [ ] 完成 `cores/easyrpg/patches/` 的 `0001`（`--nxrpg-manifest` + `envSetNextLoad`）与 `0002`（修复 `src/filefinder_rtp.cpp` Switch 自定义 RTP 路径失效）补丁
+- [ ] 实机/模拟器验收：流畅运行 RM2000 与 RM2003（含共享 RTP、GBK/Shift_JIS 编码、独立存档与 `L+R+PLUS` 返回前端）
 
 ---
 
-## Phase 3：mkxp-z 移植至 Switch（XP / VX / VX Ace）
+## Phase 2：nx.js 核心与 RPG Maker MV / MZ 兼容层
 
-**目标**：攻克最复杂的交叉编译与 Ruby 运行时移植，产出可运行的 `cores/mkxp-z.nro`。
+**目标**：基于 `TooTallNate/nx.js`（`switch-v8 >= 15.0.243-9`，`NXJS_FAT=1`）跑通 RPG Maker MV 与 MZ。
 
-- [ ] 完成 `cores/mkxp-z/cross/switch-aarch64.ini` Meson 交叉编译配置
-- [ ] 梳理并验证 `devkitPro/portlibs/switch` 依赖矩阵（SDL2、SDL2_image、SDL2_ttf、FreeType、OpenAL Soft、PhysFS、Pixman、Ogg/Vorbis、Mesa EGL/GLES2）
-- [ ] 交叉编译静态 **Ruby MRI 3.1**（面向 `aarch64-none-elf` / newlib，裁剪不支持的 POSIX 调用，验证 Fiber/Coroutine 与 RGSS GC 稳定性）
-- [ ] 适配 `mkxp-z` Switch 平台层：
-  - 默认启用 `gfx_backend=gles`、`use_miniffi=false`
-  - 为常见 RGSS Win32API 脚本提供安全 Stub（如按键检测、窗口标题、路径查询）
-  - 集成 `launch.json` 读取（自动指定 `rgssVersion` 1/2/3、RTP 路径、存档重定向、CJK 回退字体）
-  - 适配手柄映射与退出返回 `nx.rpg.nro`
-- [ ] 实机/模拟器验收：分别跑通 RPG Maker XP（RGSS1）、VX（RGSS2）、VX Ace（RGSS3）测试工程（含 `.rgssad`/`.rgss2a`/`.rgss3a` 加密包解包）
-
----
-
-## Phase 4：前端完善、统一配置与体验打磨
-
-**目标**：将 `nx.rpg` 升级为面向普通 Switch 玩家的完整桌面级前端。
-
-- [ ] 升级 Launcher UI（游戏封面墙/列表视图、引擎徽章、搜索与筛选、收藏夹、最近游玩）
-- [ ] 单游戏配置编辑器：字符编码覆写、自定义键位映射、画面缩放（整数倍/满屏/原比例）、RTP 选择
-- [ ] Switch 系统软键盘集成（用于角色起名、密码输入等场景，打通三大核心）
-- [ ] 崩溃与异常日志查看器（前端直接阅读 `runtime/last_run.log`）
-- [ ] 内置 RTP 状态检测器（扫描缺失的 RTP 并提示用户放置路径）
+- [ ] 完成 `cores/nxjs-mvz/patches/0001-applet-bind-env-set-next-load.patch`，为 `nx.js` 导出 `Switch.setNextLoad()`
+- [ ] 实现 `cores/nxjs-mvz/shim/src/` 各子模块并补齐 `vitest` 单测：
+  - `vfs/`：大小写无关路径缓存 + `fetch` / `XMLHttpRequest` 本地重定向
+  - `crypto/`：`.rpgmvp` / `.rpgmvo` / `.png_` / `.ogg_` 16 字节伪头与 XOR 解密
+  - `dom/`：最小 DOM + PixiJS v4 `'webgl'` → `screen.getContext('webgl2')` 兼容桥 + 离屏 `Canvas` + 字体加载
+  - `storage/` & `nwjs/`：关闭 NACP 账户存档弹窗，实现基于 `saves/<id>/` 的原子写 `localStorage` 与 `require('fs')` 沙箱
+  - `input/` & `perf/`：手柄、掌机触屏（含双指取消）、`@nx.js/clkrst` CPU 升频与组合键返回
+- [ ] 分别完成标准 **RPG Maker MV**（PixiJS v4）与 **RPG Maker MZ**（PixiJS v5 + `effekseer.wasm`）工程实机闭环验收
+- [ ] 针对主流插件（YEP / VisuStella / Galv）迭代补齐高频 DOM / NW.js 边角接口
 
 ---
 
-## Phase 5：发布工程与持续集成
+## Phase 3：mkxp-z 移植与 RGSS1 / RGSS2 / RGSS3 攻坚
 
-- [ ] 完善 GitHub Actions 自动化构建（基于 `devkitpro/devkita64` Docker 镜像分 Job 构建 Launcher 与三个核心）
-- [ ] 自动打包标准 SD 卡发布压缩包（`nx.rpg-vX.Y.Z.zip`）与上游源码/补丁归档（满足 GPL 合规）
-- [ ] 建立公开的《Switch 游戏兼容性列表》模板与 Issue 反馈模板
+**目标**：在 `devkitA64` 下交叉构建静态 Ruby MRI 3.1 与 `mkxp-z.nro`，打通 XP / VX / VX Ace。
+
+- [ ] **Phase 3a**：按 `cores/mkxp-z/ruby-switch/` 规范编出含 `zlib` + CJK 编码表的静态 `libruby-static.a` 并在 Switch 验证 Ruby VM 与 ARM64 Fiber
+- [ ] **Phase 3b**：基于 `switch-aarch64.ini` 与 `0001` 补丁打通 SDL2 + Mesa EGL/GLES2 + OpenAL Soft + PhysFS 静态链接，产出 `mkxp-z.nro`
+- [ ] **Phase 3c**：完成 `0002` / `0003` 补丁及 `00_nxrpg_save_redirect.rb`、`01_nxrpg_win32_ext.rb`，实机跑通 RMXP / VX / VX Ace（含重命名 `.rgssad/.rgss2a/.rgss3a` 解包与存档隔离）
+- [ ] **Phase 3d**：面向社区热门同人作品完善 `Win32API` 兼容垫片与大图集内存回收调优
 
 ---
 
-## 核心技术风险与缓解策略
+## Phase 4：全平台体验打磨与诊断中心
 
-| 风险项 | 影响范围 | 风险等级 | 缓解策略 |
-| :--- | :--- | :---: | :--- |
-| **Ruby MRI 交叉编译至 newlib/devkitA64** | mkxp-z (XP/VX/VXAce) | **高** | 参考社区已知 `mruby`/CRuby Switch 移植补丁，优先关闭非必需标准库（`socket`/`openssl`/`fiddle`）与 `fork`，保证 RGSS 所需核心子集稳定 |
-| **MV/MZ 第三方插件依赖浏览器/NW.js 冷门 API** | nx.js (MV/MZ) | **中高** | 采用按需演进的 Shim 架构 + 详细缺失 API 日志上报，优先覆盖官方核心脚本与 Top 50 热门插件 |
-| **Switch 内存限制（特别是 Applet Mode 与大图集）** | nx.js / mkxp-z | **中** | 强提醒 Title Takeover 全内存模式；为 V8 设定合理堆上限，为 Bitmap/Texture 缓存配置积极回收策略 |
-| **Switch SD 卡（FAT32/exFAT）路径大小写与非法文件名** | 全部核心 | **中** | 在适配层实现大小写不敏感路径解析缓存（RPG Maker 游戏常见脚本路径与真实文件名大小写不一致） |
-| **Windows 专用 Win32API / DLL 扩展** | mkxp-z (XP/VX/VXAce) | **中** | 提供可控的 RGSS Win32API Ruby Stub 层，拦截常见非关键调用避免崩溃，对依赖原生 x86 DLL 的游戏明确标注不兼容 |
+- [ ] 三大核心打通 Switch 原生 `swkbd` 系统软键盘（主角起名、密码输入直接支持中文拼音/日文假名）
+- [ ] 完善 Borealis 前端 `DiagnosticsTab`：一键查看 `runtime/last_run.log` 崩溃摘要、5 代共享 RTP 完整性检测、CJK 字体巡检与孤立 `.tmp` 清理
+- [ ] 支持游戏封面缩略图异步解码缓存（含从加密包提取标题图缩略图）、收藏夹与游玩时长统计
+
+---
+
+## Phase 5：容器化矩阵 CI 与合规发布工程
+
+- [ ] 上线基于 `devkitpro/devkita64` 的 GitHub Actions 四目标并行构建缓存流水线
+- [ ] 实现一键打包脚本：同步产出 `nx.rpg-vX.Y.Z-switch.zip` 与满足 GPLv2/GPLv3 义务的 `nx.rpg-vX.Y.Z-gpl-sources.tar.zst`
+- [ ] 建立公开游戏兼容性数据库与标准反馈 Issue 模板

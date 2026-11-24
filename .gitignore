@@ -12,7 +12,7 @@ out/
 *.a
 *.so
 
-# Upstream core checkouts (fetched via scripts/bootstrap-cores.sh)
+# Upstream core checkouts (fetched via scripts/bootstrap-cores.sh, locked by third_party/upstreams.lock.json)
 third_party/EasyRPG-Player/
 third_party/nx.js/
 third_party/mkxp-z/
@@ -23,7 +23,7 @@ node_modules/
 .turbo/
 *.tsbuildinfo
 
-# Local runtime / test game dumps (never commit user games or saves)
+# Local runtime / test game dumps (never commit user games, RTPs, caches, or saves)
 sdcard/switch/nx.rpg/games/*
 !sdcard/switch/nx.rpg/games/.gitkeep
 sdcard/switch/nx.rpg/saves/*
@@ -34,7 +34,17 @@ sdcard/switch/nx.rpg/fonts/*
 !sdcard/switch/nx.rpg/fonts/.gitkeep
 sdcard/switch/nx.rpg/cores/*
 !sdcard/switch/nx.rpg/cores/.gitkeep
-sdcard/switch/nx.rpg/runtime/
+sdcard/switch/nx.rpg/cache/*
+!sdcard/switch/nx.rpg/cache/.gitkeep
+!sdcard/switch/nx.rpg/cache/covers
+sdcard/switch/nx.rpg/cache/covers/*
+!sdcard/switch/nx.rpg/cache/covers/.gitkeep
+sdcard/switch/nx.rpg/runtime/*
+!sdcard/switch/nx.rpg/runtime/.gitkeep
+
+# Python cache
+__pycache__/
+*.pyc
 
 # Editor / OS
 .vscode/

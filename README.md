@@ -1,120 +1,77 @@
 # nx.rpg
 
-**nx.rpg** 是一款面向 **Nintendo Switch** 的多引擎 RPG Maker 统一运行器（All-in-One Runner），旨在通过整合三个成熟开源运行核心，在一套统一的前端与配置体系下支持全世代主流 RPG Maker 游戏。
+**nx.rpg** 是一款面向 **Nintendo Switch** 的全世代 RPG Maker 统一运行器（All-in-One Runner），基于 **C++20 + Borealis** 原生风格统一前端与三个独立 `.nro` 核心链式加载架构，支持 **RPG Maker 2000、2003、XP、VX、VX Ace、MV、MZ** 共 7 代引擎作品。
 
-> **当前阶段**：`Phase 0 — 项目架构设计与目录布局`（规划与脚手架初始化中，尚未发布可运行 `.nro` 构建产物）。
-
----
-
-## 支持目标矩阵
-
-| RPG Maker 版本 | 脚本 / 运行时 | 对应核心 | 上游仓库 | Switch 适配现状与难度 |
-| :--- | :--- | :--- | :--- | :--- |
-| **RPG Maker 2000** | LCF / 事件解释器 | **EasyRPG Player** | [EasyRPG/Player](https://github.com/EasyRPG/Player) | **低** — 上游原生支持 `devkitA64` / `Switch.cmake` |
-| **RPG Maker 2003** | LCF / 事件解释器 | **EasyRPG Player** | [EasyRPG/Player](https://github.com/EasyRPG/Player) | **低** — 上游原生支持 `devkitA64` / `Switch.cmake` |
-| **RPG Maker MV** | JS / PixiJS v4 / WebAudio | **nx.js** + MV/MZ Shim | [TooTallNate/nx.js](https://github.com/TooTallNate/nx.js) | **中** — 上游原生提供 V8 / Skia Canvas2D / WebGL2 / WebAudio，需补齐 DOM 与 NW.js 兼容层 |
-| **RPG Maker MZ** | JS / PixiJS v5 / WebGL2 / Effekseer WASM | **nx.js** + MV/MZ Shim | [TooTallNate/nx.js](https://github.com/TooTallNate/nx.js) | **中** — 依托 nx.js 的 WebGL2 + WASM 能力，需补齐 DOM / FontFace / 插件兼容层 |
-| **RPG Maker XP** | Ruby (RGSS1) | **mkxp-z** | [mkxp-z/mkxp-z](https://github.com/mkxp-z/mkxp-z) | **高** — 需移植 Meson + 静态 Ruby MRI 3.1 + SDL2/GLES2/OpenAL Soft 至 `devkitA64` |
-| **RPG Maker VX** | Ruby (RGSS2) | **mkxp-z** | [mkxp-z/mkxp-z](https://github.com/mkxp-z/mkxp-z) | **高** — 同上（RGSS2） |
-| **RPG Maker VX Ace** | Ruby (RGSS3) | **mkxp-z** | [mkxp-z/mkxp-z](https://github.com/mkxp-z/mkxp-z) | **高** — 同上（RGSS3） |
+> **当前阶段**：`Phase 0 完成 — 深度架构规范、JSON 契约、上游锁文件与各子模块接口骨架已就绪`（即将进入 Phase 1 编码实现）。
 
 ---
 
-## 核心架构设计
+## 支持矩阵与锁定基线
 
-`nx.rpg` 采用 **统一前端 + 独立核心 NRO 链式加载（`envSetNextLoad`）** 的多进程式隔离架构，而非将三大引擎硬链接为单个庞大二进制：
+三大上游核心通过 [third_party/upstreams.lock.json](third_party/upstreams.lock.json) 精确锁定 Commit SHA，配合补丁队列（`cores/*/patches/SERIES`）实现低侵入可复现构建：
 
-```text
-+-----------------------------------------------------------------------+
-|                    nx.rpg.nro (统一前端 Launcher)                      |
-|  游戏扫描 / 7代引擎自动识别 / 封面与元数据 / RTP与字体管理 / 按键配置  |
-+-----------------------------------+-----------------------------------+
-                                    |
-        写入 sdmc:/switch/nx.rpg/runtime/launch.json
-        并通过 libnx envSetNextLoad() 链式加载对应核心
-                                    |
-        +---------------------------+---------------------------+
-        v                           v                           v
-+------------------+     +--------------------+     +--------------------+
-| cores/easyrpg    |     | cores/nxjs-mvz     |     | cores/mkxp-z       |
-| (easyrpg.nro)    |     | (nxjs-mvz.nro)     |     | (mkxp-z.nro)       |
-| RM 2000 / 2003   |     | RM MV / MZ         |     | RM XP / VX / VXAce |
-| C++ / CMake      |     | V8 / Skia / WebGL2 |     | C++ / Ruby / Meson |
-| GPL-3.0          |     | MIT                |     | GPL-2.0 (+GPL-3.0) |
-+------------------+     +--------------------+     +--------------------+
-        |                           |                           |
-        +---------------------------+---------------------------+
-                                    |
-               退出游戏后自动 envSetNextLoad 返回 nx.rpg.nro
-```
-
-### 为什么采用多 NRO 隔离架构？
-
-1. **开源许可证严格合规**：`mkxp-z`（GPL-2.0）、`EasyRPG Player`（GPL-3.0）与 `nx.js`（MIT）存在许可边界差异；拆分为独立可执行 `.nro` 可避免单二进制静态链接带来的许可证冲突。
-2. **Switch 内存预算最大化**：V8 堆内存（MV/MZ）与 Ruby/位图缓存（XP/VX/VXAce）对内存敏感，独立核心能让当前运行的游戏独占全部可用内存（Title Takeover 全内存模式下约 3.2 GB+）。
-3. **保留上游原生构建系统**：CMake（EasyRPG）、Makefile + pnpm（nx.js）、Meson（mkxp-z）互不干扰，通过 `third_party/` + `patches/` 队列持续同步上游更新。
-4. **崩溃隔离与可维护性**：单个核心的崩溃、图形上下文（GLES2 vs GLES3/Skia）或音频后端（`audren` vs OpenAL vs SDL2）互不污染。
+| RPG Maker 世代 | 脚本 / 运行时 | 调度核心 | 上游基线 | 底层图形 / 音频栈（Switch） | 适配复杂度 |
+| :--- | :--- | :--- | :--- | :--- | :---: |
+| **RM 2000 / 2003** | LCF 事件解释器 | `cores/easyrpg.nro` | [EasyRPG/Player](https://github.com/EasyRPG/Player) (`a99ca834`) | EGL/OpenGL (`glad`) + `libnx` `audout` | 低（Phase 1） |
+| **RM MV** | JS / PixiJS v4 | `cores/nxjs-mvz.nro` | [TooTallNate/nx.js](https://github.com/TooTallNate/nx.js) (`462203af`) | V8 (`>=15.0.243-9`) + Skia 2D / GLES3 WebGL2 + FFmpeg `audren` | 中（Phase 2） |
+| **RM MZ** | JS / PixiJS v5 / Effekseer WASM | `cores/nxjs-mvz.nro` | [TooTallNate/nx.js](https://github.com/TooTallNate/nx.js) (`462203af`) | 同上 + 全内存模式 V8 WASM JIT | 中（Phase 2） |
+| **RM XP / VX / VX Ace** | Ruby MRI 3.1 (RGSS 1/2/3) | `cores/mkxp-z.nro` | [mkxp-z/mkxp-z](https://github.com/mkxp-z/mkxp-z) (`a8f9d9ee`) | SDL2 + Mesa EGL/GLES2 + OpenAL Soft + PhysFS | 高（Phase 3） |
 
 ---
 
-## 目录结构
+## 仓库目录全景
 
 ```text
 nx.rpg/
-├── docs/                       # 架构设计、路线图、引擎识别、启动协议与各核心规划文档
-│   ├── ARCHITECTURE.md         # 系统总体架构、内存策略与 SD 卡布局
-│   ├── ROADMAP.md              # Phase 0 ~ Phase 5 里程碑规划与风险评估
-│   ├── ENGINE_DETECTION.md     # 7 代 RPG Maker 自动检测规则与字符编码/RTP 策略
-│   ├── LAUNCH_PROTOCOL.md      # Launcher <-> Core 通信协议与 launch.json 规范
-│   └── cores/                  # 三大核心各自的移植/集成专项方案
-├── launcher/                   # 主前端应用（nx.rpg.nro）
-├── cores/                      # 三大核心的适配层、补丁队列与交叉编译配置
-│   ├── easyrpg/                # EasyRPG Player 适配与补丁
-│   ├── nxjs-mvz/               # nx.js 的 RPG Maker MV/MZ DOM/NW.js 兼容层与补丁
-│   └── mkxp-z/                 # mkxp-z 的 Switch/devkitA64 Meson 交叉配置与补丁
-├── common/                     # 共享 Schema、协议定义与通用配置结构
-│   └── schemas/                # launch-manifest 与 game-config 的 JSON Schema
-├── assets/                     # 应用图标、默认封面与 NACP 资源
-├── sdcard/                     # Switch SD 卡目标目录结构模板（sdmc:/switch/nx.rpg/）
-├── scripts/                    # 环境检查与上游核心仓库拉取脚本
-└── third_party/                # 上游核心源码挂载目录（通过脚本拉取，默认不提交源码）
+├── common/                         # 跨平台 C++20 公共库骨架与权威 JSON Schemas
+│   ├── CMakeLists.txt              # Switch + 宿主机双目标构建骨架
+│   ├── schemas/                    # 5 份 JSON Schema (global / game / launch / cache / upstreams-lock)
+│   └── include/nxrpg/              # 引擎识别、三层配置合并、原子写与 envSetNextLoad 接口头文件
+├── launcher/                       # 统一前端 nx.rpg.nro (C++20 + Borealis)
+│   ├── CMakeLists.txt              # Switch NRO 与桌面预览双模式构建配置
+│   ├── npdm.json                   # Switch TitleID (0x016e787270670000) 与服务权限声明
+│   ├── include/launcher/           # 增量游戏库服务、环境医生、启动调度器与 Borealis 视图层头文件
+│   └── resources/                  # 多语言文案 (zh-CN / en-US) 与 XML 布局目录
+├── cores/                          # 三大核心的补丁队列、交叉配置与兼容垫片
+│   ├── easyrpg/                    # EasyRPG CMake 叠加配置与 3 枚补丁规格（含 Switch 自定义 RTP 修复）
+│   ├── nxjs-mvz/                   # nx.js (--fat) 配置、补丁及模块化 TypeScript MV/MZ Shim 接口骨架
+│   └── mkxp-z/                     # devkitA64 Meson 交叉配置、静态 Ruby 3.1 清单与 RGSS 预加载脚本骨架
+├── docs/                           # 完整工程设计规范文档集
+│   ├── ARCHITECTURE.md             # 总体拓扑、Applet vs 全内存 V8/WASM 机制、CPU 调频与 SD 布局
+│   ├── ENGINE_DETECTION.md         # 7 代引擎识别优先级、重命名 execName 推断、编码与 RTP 探测
+│   ├── LAUNCH_PROTOCOL.md          # 三层配置合并、按核心区分的 argv 规则与回跳协议
+│   ├── INPUT_AND_UI_SPEC.md        # 跨 7 代手柄按键矩阵、触屏双指取消、swkbd 软键盘与前端交互
+│   ├── FILESYSTEM_AND_SAVES.md     # FAT32/exFAT 原子写防损、大小写无关 VFS、7 代解密与存档完全隔离
+│   ├── BUILD_AND_CI.md             # 容器化工具链、TitleID/图标规范与 GPL 合规源码归档流水线
+│   ├── ROADMAP.md                  # Phase 0 ~ Phase 5 实施路线图
+│   └── cores/                      # EasyRPG / nxjs-mvz / mkxp-z 三份专项集成方案
+├── sdcard/switch/nx.rpg/           # Switch SD 卡部署目录结构模板与示例配置
+├── tests/                          # 宿主机无硬件单元测试与 7 代合成测试夹具规范
+├── scripts/                        # 环境自检、锁定 SHA 检出、补丁队列应用与全仓契约校验脚本
+└── third_party/                    # upstreams.lock.json 锁文件与上游源码挂载点（源码已 gitignore）
 ```
 
 ---
 
-## 规划文档索引
-
-- [系统总体架构（ARCHITECTURE.md）](docs/ARCHITECTURE.md)
-- [分阶段开发路线图（ROADMAP.md）](docs/ROADMAP.md)
-- [引擎自动识别、编码与 RTP 规范（ENGINE_DETECTION.md）](docs/ENGINE_DETECTION.md)
-- [Launcher 与 Core 启动协议（LAUNCH_PROTOCOL.md）](docs/LAUNCH_PROTOCOL.md)
-- 核心集成专项规划：
-  - [EasyRPG Player 核心规划（RM2000 / RM2003）](docs/cores/easyrpg-plan.md)
-  - [nx.js 核心规划（RM MV / MZ）](docs/cores/nxjs-mvz-plan.md)
-  - [mkxp-z 核心规划（RM XP / VX / VX Ace）](docs/cores/mkxp-z-plan.md)
-
----
-
-## 开发环境准备（预览）
-
-后续进入核心构建阶段将依赖以下工具链：
-
-- [devkitPro](https://devkitpro.org/)（`devkitA64`、`libnx`、`switch-portlibs`、`switch-tools`）
-- `cmake` / `ninja`（用于 EasyRPG Player）
-- `node` / `pnpm`（用于 nx.js 运行时与 MV/MZ Shim 构建）
-- `meson` / `pkg-config`（用于 mkxp-z 交叉编译）
-
-可通过以下脚本检查当前环境或拉取上游仓库：
+## 快速校验与上游检出
 
 ```bash
+# 查看可用命令
 make help
-./scripts/check-env.sh
-./scripts/bootstrap-cores.sh
+
+# 校验全仓 JSON Schema、示例配置、锁文件、补丁队列与 Shell 脚本语法
+make validate
+
+# 检查本地 devkitPro / CMake / Meson / Node / pnpm 工具链状态
+make check-env
+
+# 按 third_party/upstreams.lock.json 锁定的精确 Commit SHA 拉取三大上游核心源码
+make bootstrap-cores
 ```
 
 ---
 
 ## 许可证
 
-- `nx.rpg` 仓库自身的前端代码、兼容层脚本、协议定义与文档采用 **MIT License**（见 [LICENSE](LICENSE)）。
-- 三个运行核心保留各自上游开源许可证，详细隔离策略与署名见 [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md)。
+- 本仓库自有代码（`common/`、`launcher/`、`cores/nxjs-mvz/shim/`、`scripts/`、文档与 Schema）采用 **[MIT License](LICENSE)**。
+- 三大上游核心作为独立 `.nro` 可执行进程分发，严格遵循各自开源许可证（`EasyRPG`: GPL-3.0、`mkxp-z`: GPL-2.0、`nx.js`: MIT），详见 [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md)。

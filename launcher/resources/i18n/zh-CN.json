@@ -1,0 +1,19 @@
+{
+  "app": {
+    "title": "nx.rpg",
+    "subtitle": "Nintendo Switch 多引擎 RPG Maker 运行器",
+    "applet_warning": "当前处于相册 Applet 低内存模式（~440 MB）：MV/MZ 与大型 XP/VX/VXAce 游戏可能因内存或 WASM JIT 受限而崩溃，请按住 R 键通过任意游戏进入全内存模式（Title Takeover）。"
+  },
+  "tabs": {
+    "library": "全部游戏",
+    "recent": "最近游玩",
+    "diagnostics": "环境与日志自检",
+    "settings": "全局设置"
+  },
+  "actions": {
+    "launch": "启动游戏",
+    "per_game_settings": "单游戏设置",
+    "rescan": "重新扫描目录",
+    "view_last_log": "查看上次运行日志"
+  }
+}

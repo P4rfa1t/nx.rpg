@@ -1,4 +1,4 @@
-name: Validate Layout & Schemas
+name: Validate Layout, Schemas & Contracts
 
 on:
   push:
@@ -11,19 +11,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Validate JSON files and schemas
-        run: |
-          python3 -c '
-          import glob, json, sys
-          files = sorted(glob.glob("common/schemas/*.json") + glob.glob("sdcard/**/*.json", recursive=True))
-          assert files, "No JSON files found"
-          for path in files:
-              with open(path, "r", encoding="utf-8") as f:
-                  json.load(f)
-              print(f"OK: {path}")
-          '
+      - name: Run repository contract & JSON Schema validation
+        run: python3 scripts/validate-repo.py
 
       - name: Check shell script syntax
         run: |
           bash -n scripts/check-env.sh
           bash -n scripts/bootstrap-cores.sh
+          bash -n scripts/apply-patches.sh

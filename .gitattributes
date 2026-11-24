@@ -1,3 +1,6 @@
 * text=auto eol=lf
 *.sh text eol=lf
+*.py text eol=lf
+*.rb text eol=lf
 Makefile text eol=lf
+SERIES text eol=lf

@@ -1,0 +1,6 @@
+# Patch series for mkxp-z/mkxp-z @ a8f9d9ee331034b7778d0f6c3a5603de8b87388f
+# Planned Phase 3 patches:
+# 0001-meson-horizon-host-and-nro-target.patch
+# 0002-switch-nxrpg-manifest-config-loader.patch
+# 0003-switch-sdl2-gamepad-exitcombo-and-chainload.patch
+# 0004-switch-swkbd-text-input-binding.patch

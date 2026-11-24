@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "displayTitle": "示例游戏（单游戏覆写模板）",
+  "engineOverride": "auto",
+  "encoding": "gbk",
+  "performance": {
+    "cpuProfile": "boost_1581"
+  },
+  "video": {
+    "scalingMode": "fit",
+    "integerScale": true,
+    "vsync": true,
+    "showFps": false
+  },
+  "input": {
+    "profile": "default",
+    "swapConfirmCancel": false,
+    "enableTouch": true
+  },
+  "mvzOptions": {
+    "renderer": "auto",
+    "pretendNwjs": true,
+    "maxTextureSize": 4096
+  },
+  "mkxpOptions": {
+    "enableWin32ApiStubs": true,
+    "solidFonts": false,
+    "smoothScaling": 0,
+    "frameSkip": false,
+    "subImageFix": false
+  }
+}

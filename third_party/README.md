@@ -1,13 +1,13 @@
-# third_party — 上游核心源码挂载目录
+# third_party — 上游核心锁定清单与源码挂载目录
 
-本目录用于存放通过脚本拉取的三大上游核心仓库（默认被 `.gitignore` 忽略，不直接提交庞大上游代码至主仓库）：
+本目录通过 [upstreams.lock.json](upstreams.lock.json)（Schema 见 [upstreams-lock.schema.json](../common/schemas/upstreams-lock.schema.json)）精确锁定三大上游核心仓库的 Git URL、分支与 **40 位 Commit SHA**。实际源码目录（`EasyRPG-Player/`、`nx.js/`、`mkxp-z/`）被 `.gitignore` 忽略，不提交至主仓库。
 
-- `third_party/EasyRPG-Player` → `https://github.com/EasyRPG/Player`
-- `third_party/nx.js` → `https://github.com/TooTallNate/nx.js`
-- `third_party/mkxp-z` → `https://github.com/mkxp-z/mkxp-z`
-
-运行仓库根目录下的脚本一键初始化或更新：
+## 常用操作
 
 ```bash
-./scripts/bootstrap-cores.sh
+# 按 upstreams.lock.json 检出精确锁定的上游 Commit
+bash scripts/bootstrap-cores.sh
+
+# 对已检出的上游目录检查或应用 cores/<core>/patches/SERIES 中的补丁队列
+bash scripts/apply-patches.sh --check all
 ```

@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/P4rfa1t/nx.rpg/schemas/library-cache.schema.json",
+  "title": "nx.rpg Library Scan Cache",
+  "description": "Cached game metadata index stored at sdmc:/switch/nx.rpg/cache/library.json to avoid slow full SD rescans when returning from cores.",
+  "type": "object",
+  "required": ["schemaVersion", "generatedAt", "entries"],
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1
+    },
+    "generatedAt": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Unix epoch seconds when cache was last updated."
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "engine",
+          "core",
+          "gamePath",
+          "contentRoot",
+          "execName",
+          "dirMtime",
+          "hasEncryptedArchive"
+        ],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-zA-Z0-9._-]+$" },
+          "title": { "type": "string" },
+          "engine": {
+            "type": "string",
+            "enum": ["rm2k", "rm2k3", "rmxp", "rmvx", "rmvxa", "rmmv", "rmmz"]
+          },
+          "core": {
+            "type": "string",
+            "enum": ["easyrpg", "nxjs-mvz", "mkxp-z"]
+          },
+          "gamePath": { "type": "string" },
+          "contentRoot": { "type": "string" },
+          "execName": { "type": "string", "default": "Game" },
+          "detectedEncoding": { "type": "string", "default": "auto" },
+          "coverCachePath": { "type": "string", "default": "" },
+          "dirMtime": { "type": "integer", "minimum": 0 },
+          "hasEncryptedArchive": { "type": "boolean" },
+          "needsRtp": { "type": "boolean", "default": false },
+          "favorite": { "type": "boolean", "default": false },
+          "lastPlayedAt": { "type": "integer", "minimum": 0, "default": 0 },
+          "playTimeSeconds": { "type": "integer", "minimum": 0, "default": 0 }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

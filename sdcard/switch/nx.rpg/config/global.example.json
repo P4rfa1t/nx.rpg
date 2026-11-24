@@ -4,6 +4,9 @@
   "defaultEncoding": "auto",
   "fallbackFontPath": "sdmc:/switch/nx.rpg/fonts/NotoSansCJK-Regular.ttc",
   "warnOnAppletMode": true,
+  "performance": {
+    "defaultCpuProfile": "stock_1020"
+  },
   "video": {
     "scalingMode": "fit",
     "integerScale": false,
@@ -12,6 +15,13 @@
   },
   "input": {
     "profile": "default",
+    "swapConfirmCancel": false,
+    "enableTouch": true,
     "exitCombo": ["L", "R", "PLUS"]
+  },
+  "library": {
+    "maxScanDepth": 2,
+    "sortOrder": "recent",
+    "lastSelectedGameId": ""
   }
 }

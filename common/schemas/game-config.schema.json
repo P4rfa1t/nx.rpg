@@ -5,6 +5,10 @@
   "description": "Optional per-game overrides stored at sdmc:/switch/nx.rpg/config/games/<game_id>.json.",
   "type": "object",
   "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1
+    },
     "displayTitle": {
       "type": "string",
       "description": "Custom display title in Launcher UI."
@@ -14,6 +18,10 @@
       "enum": ["auto", "rm2k", "rm2k3", "rmxp", "rmvx", "rmvxa", "rmmv", "rmmz"],
       "default": "auto"
     },
+    "execNameOverride": {
+      "type": "string",
+      "description": "Override executable stem when Game.ini / Game.rgssad was renamed (e.g. 'Touhou')."
+    },
     "encoding": {
       "type": "string",
       "enum": ["auto", "utf-8", "shift_jis", "gbk", "big5", "cp949", "cp1252"],
@@ -21,11 +29,22 @@
     },
     "rtpOverridePath": {
       "type": "string",
-      "description": "Optional custom RTP path overriding the default engine RTP."
+      "description": "Optional custom RTP path overriding the default shared engine RTP."
     },
     "fallbackFontPath": {
       "type": "string",
       "description": "Optional game-specific fallback font file."
+    },
+    "performance": {
+      "type": "object",
+      "properties": {
+        "cpuProfile": {
+          "type": "string",
+          "enum": ["inherit", "stock_1020", "boost_1581", "boost_1785"],
+          "default": "inherit"
+        }
+      },
+      "additionalProperties": false
     },
     "video": {
       "type": "object",
@@ -52,9 +71,21 @@
         "profile": {
           "type": "string"
         },
+        "swapConfirmCancel": {
+          "type": "boolean"
+        },
         "enableTouch": {
           "type": "boolean"
         }
+      },
+      "additionalProperties": false
+    },
+    "easyrpgOptions": {
+      "type": "object",
+      "description": "Advanced overrides for EasyRPG Player (RM2000/2003) core.",
+      "properties": {
+        "soundfontPath": { "type": "string" },
+        "disableRtp": { "type": "boolean" }
       },
       "additionalProperties": false
     },
@@ -64,12 +95,17 @@
       "properties": {
         "renderer": {
           "type": "string",
-          "enum": ["auto", "webgl", "canvas"],
+          "enum": ["auto", "webgl2", "canvas2d"],
           "default": "auto"
         },
         "pretendNwjs": {
           "type": "boolean",
           "default": true
+        },
+        "maxTextureSize": {
+          "type": "integer",
+          "enum": [0, 2048, 4096],
+          "default": 4096
         }
       },
       "additionalProperties": false
@@ -83,6 +119,19 @@
           "default": true
         },
         "solidFonts": {
+          "type": "boolean",
+          "default": false
+        },
+        "smoothScaling": {
+          "type": "integer",
+          "enum": [0, 1, 2, 3, 4],
+          "default": 0
+        },
+        "frameSkip": {
+          "type": "boolean",
+          "default": false
+        },
+        "subImageFix": {
           "type": "boolean",
           "default": false
         }
