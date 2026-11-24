@@ -49,6 +49,12 @@ jobs:
           apt-get update -qq
           apt-get install -y -qq --no-install-recommends curl unzip bison python3-pip python3-setuptools >/dev/null
 
+
+          ARCH_FLAGS="-march=armv8-a+crc+crypto -mtune=cortex-a57 -mtp=soft -fPIC -ftls-model=local-exec"
+          CROSS_CFLAGS="-O2 -g0 $ARCH_FLAGS -D__SWITCH__ -I$PREFIX/include"
+
+          mkdir -p deps && cd deps
+
           pip3 install --quiet --break-system-packages "meson>=1.5.0" ninja
 
           {
@@ -70,11 +76,6 @@ jobs:
             echo "cpu = 'cortex-a57'"
             echo "endian = 'little'"
           } > meson-switch.txt
-
-          ARCH_FLAGS="-march=armv8-a+crc+crypto -mtune=cortex-a57 -mtp=soft -fPIC -ftls-model=local-exec"
-          CROSS_CFLAGS="-O2 -g0 $ARCH_FLAGS -D__SWITCH__ -I$PREFIX/include"
-
-          mkdir -p deps && cd deps
 
           # fmt (header+static) for Borealis
           curl -fsSLO https://github.com/fmtlib/fmt/releases/download/12.1.0/fmt-12.1.0.zip
@@ -171,6 +172,12 @@ jobs:
           apt-get update -qq
           apt-get install -y -qq --no-install-recommends curl unzip bison python3-pip python3-setuptools >/dev/null
 
+
+          ARCH_FLAGS="-march=armv8-a+crc+crypto -mtune=cortex-a57 -mtp=soft -fPIC -ftls-model=local-exec"
+          CROSS_CFLAGS="-O2 -g0 $ARCH_FLAGS -D__SWITCH__ -I$PREFIX/include"
+
+          mkdir -p deps && cd deps
+
           pip3 install --quiet --break-system-packages "meson>=1.5.0" ninja
 
           {
@@ -192,11 +199,6 @@ jobs:
             echo "cpu = 'cortex-a57'"
             echo "endian = 'little'"
           } > meson-switch.txt
-
-          ARCH_FLAGS="-march=armv8-a+crc+crypto -mtune=cortex-a57 -mtp=soft -fPIC -ftls-model=local-exec"
-          CROSS_CFLAGS="-O2 -g0 $ARCH_FLAGS -D__SWITCH__ -I$PREFIX/include"
-
-          mkdir -p deps && cd deps
 
           curl -fsSLO https://github.com/fmtlib/fmt/releases/download/12.1.0/fmt-12.1.0.zip
           unzip -q fmt-12.1.0.zip

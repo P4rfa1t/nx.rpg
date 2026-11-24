@@ -23,19 +23,16 @@ fi
 git config --global --add safe.directory "$ROOT_DIR" >/dev/null 2>&1 || true
 git config --global --add safe.directory "$MKXP_DIR" >/dev/null 2>&1 || true
 
+# Reset the upstream tree to HEAD so patch application below always starts
+# clean (the CI pipeline applies the queue in a separate step; re-appliying
+# onto an already-patched tree would fail with "already exists").
+echo ">>> Resetting mkxp-z tree to upstream HEAD..."
+git -C "$MKXP_DIR" reset --hard -q HEAD
+
 # Stage into container-local tmpfs for fast Meson subproject extraction/patching
 rm -rf "$SRC_STAGE" "$BUILD_DIR" "$ROMFS_STAGE"
 mkdir -p "$SRC_STAGE"
 tar -C "$MKXP_DIR" --exclude=.git -cf - . | tar -C "$SRC_STAGE" -xf -
-
-# Re-apply the full SERIES patch queue on a clean staged tree so updated
-# patches always take effect; a leftover marker means the stage is stale.
-if grep -q "host_machine_is_horizon" "$SRC_STAGE/subprojects/common/sonametool.py" 2>/dev/null; then
-  echo ">>> Re-staging mkxp-z source (previous stage already patched)..."
-  rm -rf "$SRC_STAGE"
-  mkdir -p "$SRC_STAGE"
-  tar -C "$MKXP_DIR" --exclude=.git -cf - . | tar -C "$SRC_STAGE" -xf -
-fi
 
 # Normalize CRLF in staged copy, then apply the full SERIES queue in order.
 # Wrap diff files under subprojects/packagefiles must be LF or Meson's
