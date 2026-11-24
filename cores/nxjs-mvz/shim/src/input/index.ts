@@ -118,6 +118,26 @@ export class SwitchInputBridgeImpl implements SwitchInputBridge {
       syncKey(btn(6), 'PageUp', 33); // L
       syncKey(btn(7), 'PageDown', 34); // R
       syncKey(btn(8), 'Control', 17); // ZL -> Ctrl (skip text)
+
+      // In RPG Maker MV/MZ Scene_Name, pressing X (button 2) triggers native Switch swkbd
+      if (btn(2) && !prevKeys.has('__SWKBD_X__') && manifest.runtime.enableSoftwareKeyboard) {
+        prevKeys.add('__SWKBD_X__');
+        const scene = g.SceneManager?._scene;
+        const editWin = scene?._editWindow;
+        if (editWin && typeof editWin.name === 'function' && typeof editWin.maxLength === 'function') {
+          const initial = String(editWin.name() ?? '');
+          const maxLen = Number(editWin.maxLength() ?? 12);
+          void this.openSoftwareKeyboard(initial, maxLen).then((entered) => {
+            if (entered !== null && entered.length > 0 && typeof editWin._name !== 'undefined') {
+              editWin._name = entered.slice(0, maxLen);
+              editWin._index = editWin._name.length;
+              editWin.refresh?.();
+            }
+          });
+        }
+      } else if (!btn(2)) {
+        prevKeys.delete('__SWKBD_X__');
+      }
     }, 16);
   }
 
@@ -134,17 +154,39 @@ export class SwitchInputBridgeImpl implements SwitchInputBridge {
     if (!kbd || typeof kbd.show !== 'function') {
       return initialText;
     }
+    const clampedMax = Math.max(1, maxLength);
     return new Promise((resolve) => {
-      const done = (val: string | null) => {
-        resolve(val === null ? null : val.slice(0, Math.max(1, maxLength)));
+      let settled = false;
+      let shown = false;
+      const cleanup = () => {
+        kbd.removeEventListener?.('submit', onSubmit);
+        kbd.removeEventListener?.('geometrychange', onGeometryChange);
+      };
+      const finish = (val: string | null) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        resolve(val === null ? null : val.slice(0, clampedMax));
+      };
+      const onSubmit = () => {
+        finish(String(kbd.value ?? ''));
+      };
+      const onGeometryChange = () => {
+        const w = kbd.boundingRect?.width ?? 0;
+        if (w > 0) {
+          shown = true;
+        } else if (shown) {
+          finish(null);
+        }
       };
       try {
-        kbd.value = initialText;
-        kbd.onsubmit = (ev: any) => done(String(ev?.target?.value ?? kbd.value ?? ''));
-        kbd.oncancel = () => done(null);
+        kbd.maxLength = clampedMax;
+        kbd.value = initialText.slice(0, clampedMax);
+        kbd.addEventListener?.('submit', onSubmit);
+        kbd.addEventListener?.('geometrychange', onGeometryChange);
         kbd.show();
       } catch {
-        done(initialText);
+        finish(initialText);
       }
     });
   }

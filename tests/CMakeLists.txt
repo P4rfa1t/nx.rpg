@@ -13,6 +13,7 @@ endif()
 
 foreach(test_name IN ITEMS
   test_engine_detector
+  test_cover_extractor
   test_config_merger
   test_case_path
   test_chainload_argv

@@ -21,10 +21,11 @@ fi
 git config --global --add safe.directory "$ROOT_DIR" >/dev/null 2>&1 || true
 git config --global --add safe.directory "$EASYRPG_DIR" >/dev/null 2>&1 || true
 
-# Apply active patches cleanly if not already applied
-if git -C "$EASYRPG_DIR" apply --check "$ROOT_DIR/cores/easyrpg/patches/0001-switch-nxrpg-manifest-and-chainload.patch" 2>/dev/null; then
-  bash "$ROOT_DIR/scripts/apply-patches.sh" easyrpg
-fi
+# Re-apply the full SERIES patch queue on a clean upstream tree so updated
+# patches always take effect (build-from-clean; upstream HEAD is the base).
+echo ">>> Resetting EasyRPG tree to upstream HEAD for clean patch application..."
+git -C "$EASYRPG_DIR" reset --hard -q HEAD
+bash "$ROOT_DIR/scripts/apply-patches.sh" easyrpg
 
 cmake -S "$EASYRPG_DIR" -B "$BUILD_DIR" -G Ninja \
   -DCMAKE_TOOLCHAIN_FILE="$DEVKITPRO/cmake/Switch.cmake" \

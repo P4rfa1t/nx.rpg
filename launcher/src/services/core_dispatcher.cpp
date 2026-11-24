@@ -8,6 +8,7 @@
 #include "launcher/services/config_service.hpp"
 #include "nxrpg/chainload.hpp"
 #include "nxrpg/config_merger.hpp"
+#include "nxrpg/json.hpp"
 #include "nxrpg/paths.hpp"
 
 namespace nxrpg::launcher {
@@ -146,6 +147,17 @@ bool CoreDispatcher::dispatch(
   }
 
   (void)ConfigService::update_last_selected_game(sd_root, game.id);
+
+  // Record launch start timestamp so `--from-core` updates playTimeSeconds accurately
+  {
+    auto now_secs = std::chrono::duration_cast<std::chrono::seconds>(
+                        std::chrono::system_clock::now().time_since_epoch())
+                        .count();
+    JsonValue sess = JsonValue::make_object();
+    sess.set("gameId", manifest.game.id);
+    sess.set("startedAt", static_cast<std::int64_t>(now_secs > 0 ? now_secs : 0));
+    (void)paths::write_file_atomic(sd_root / "runtime/active_session.json", sess.dump(false));
+  }
 
   if (!arm_chainload) {
     return true;

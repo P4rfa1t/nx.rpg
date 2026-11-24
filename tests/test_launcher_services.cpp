@@ -138,7 +138,7 @@ int main() {
     auto r5 = CoreDispatcher::precheck(k2_game, MemoryExecutionMode::AppletRestrictedRam, sd);
     NXRPG_CHECK(r5.status == LaunchPrecheckStatus::Ready);
 
-    // Dispatch writes runtime/launch.json and updates lastSelectedGameId
+    // Dispatch writes runtime/launch.json, runtime/active_session.json, and updates lastSelectedGameId
     NXRPG_CHECK(CoreDispatcher::dispatch(mv_game, sd, false));
     auto manifest = LaunchManifest::load_from_file(sd / "runtime/launch.json");
     NXRPG_CHECK(manifest.has_value());
@@ -147,6 +147,12 @@ int main() {
       NXRPG_CHECK(manifest->game.core == CoreKind::NxjsMvz);
       NXRPG_CHECK(manifest->runtime.cpu_profile == CpuProfile::Boost1581);
     }
+    NXRPG_CHECK(std::filesystem::is_regular_file(sd / "runtime/active_session.json"));
+
+    // Simulate returning via `--from-core` after 45 seconds
+    NXRPG_CHECK(LauncherApp::finalize_active_session(sd, 9999999999ULL));
+    NXRPG_CHECK(!std::filesystem::exists(sd / "runtime/active_session.json"));
+
     GlobalConfig updated = ConfigService::load_global(sd);
     NXRPG_CHECK(updated.library.last_selected_game_id == mv_game.id);
   }

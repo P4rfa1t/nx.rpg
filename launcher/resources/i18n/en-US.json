@@ -21,9 +21,15 @@
     "view_last_log": "View Last Run Log",
     "toggle_favorite": "Toggle Favorite",
     "filter_engine": "Filter Engine",
+    "cleanup_tmp": "Clean .tmp & Refresh",
     "continue_anyway": "Launch Anyway",
     "cancel": "Cancel",
     "save": "Save Settings"
+  },
+  "stats": {
+    "play_time": "Play Time",
+    "save_dir": "Isolated Save Path",
+    "favorite": "Favorite"
   },
   "settings": {
     "language": "UI Language",

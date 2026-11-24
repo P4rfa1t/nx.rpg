@@ -8,6 +8,7 @@
 #include <unordered_map>
 
 #include "launcher/services/config_service.hpp"
+#include "nxrpg/cover_extractor.hpp"
 #include "nxrpg/json.hpp"
 #include "nxrpg/paths.hpp"
 
@@ -337,15 +338,9 @@ bool LibraryService::toggle_favorite(std::string_view game_id) {
 
 fs::path LibraryService::ensure_cover_thumbnail(const DetectedGame& game) {
   std::error_code ec;
-  fs::path cached_jpg = sd_root_ / "cache/covers" / (game.id + ".jpg");
-  if (fs::is_regular_file(cached_jpg, ec)) {
-    return cached_jpg;
-  }
-  if (!game.cover_source_path.empty()) {
-    fs::path src(game.cover_source_path);
-    if (fs::is_regular_file(src, ec)) {
-      return src;
-    }
+  fs::path extracted = CoverExtractor::extract_to_cache(game, sd_root_ / "cache/covers");
+  if (!extracted.empty() && fs::is_regular_file(extracted, ec)) {
+    return extracted;
   }
   if (!game.content_root.empty()) {
     fs::path cr(game.content_root);

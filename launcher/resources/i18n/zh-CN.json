@@ -21,9 +21,15 @@
     "view_last_log": "查看上次运行日志",
     "toggle_favorite": "切换收藏",
     "filter_engine": "筛选引擎",
+    "cleanup_tmp": "清理残留 .tmp 并刷新",
     "continue_anyway": "仍要启动",
     "cancel": "取消",
     "save": "保存配置"
+  },
+  "stats": {
+    "play_time": "累计游玩时长",
+    "save_dir": "独立存档目录",
+    "favorite": "已收藏"
   },
   "settings": {
     "language": "界面语言",

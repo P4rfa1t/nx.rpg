@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { RpgmAssetDecryptorImpl } from '../src/crypto/rpgm-decryptor';
 import { DomShimControllerImpl } from '../src/dom';
 import type { FsStat, RuntimeFs } from '../src/fs-adapter';
-import { isExitComboPressed } from '../src/input';
+import { isExitComboPressed, SwitchInputBridgeImpl } from '../src/input';
 import { NwjsSandboxShimImpl } from '../src/nwjs';
 import { IsolatedSaveStorageImpl } from '../src/storage';
 import type { LaunchManifest } from '../src/types';
@@ -240,5 +240,49 @@ describe('CaseInsensitiveVfsImpl, IsolatedSaveStorageImpl & NwjsSandboxShimImpl'
     expect(isExitComboPressed(buttons, ['L', 'R', 'PLUS'])).toBe(false);
     buttons[10].pressed = true; // PLUS
     expect(isExitComboPressed(buttons, ['L', 'R', 'PLUS'])).toBe(true);
+  });
+
+  it('drives nx.js VirtualKeyboard EventTarget for openSoftwareKeyboard', async () => {
+    const g = globalThis as any;
+    const prevDesc = Object.getOwnPropertyDescriptor(g, 'navigator');
+    const listeners = new Map<string, Array<() => void>>();
+    const mockKbd = {
+      value: '',
+      maxLength: 0,
+      boundingRect: { width: 0, height: 0 },
+      addEventListener(type: string, fn: () => void) {
+        const arr = listeners.get(type) ?? [];
+        arr.push(fn);
+        listeners.set(type, arr);
+      },
+      removeEventListener(type: string, fn: () => void) {
+        listeners.set(
+          type,
+          (listeners.get(type) ?? []).filter((f) => f !== fn),
+        );
+      },
+      show() {
+        mockKbd.boundingRect.width = 1280;
+        for (const fn of listeners.get('geometrychange') ?? []) fn();
+        mockKbd.value = '勇者小明';
+        for (const fn of listeners.get('submit') ?? []) fn();
+      },
+    };
+    Object.defineProperty(g, 'navigator', {
+      value: { virtualKeyboard: mockKbd },
+      configurable: true,
+    });
+    try {
+      const bridge = new SwitchInputBridgeImpl();
+      const entered = await bridge.openSoftwareKeyboard('Hero', 8);
+      expect(entered).toBe('勇者小明');
+      expect(mockKbd.maxLength).toBe(8);
+    } finally {
+      if (prevDesc) {
+        Object.defineProperty(g, 'navigator', prevDesc);
+      } else {
+        delete g.navigator;
+      }
+    }
   });
 });

@@ -1,0 +1,115 @@
+diff --git a/binding/input-binding.cpp b/binding/input-binding.cpp
+index 3e20428..b6a168c 100644
+--- a/binding/input-binding.cpp
++++ b/binding/input-binding.cpp
+@@ -29,8 +29,13 @@
+ #include "util/exception.h"
+ #include "input/input.h"
+ #include "sharedstate.h"
++#include "config.h"
+ #include "src/util/util.h"
+ 
++#ifdef __SWITCH__
++#include <switch.h>
++#endif
++
+ RB_METHOD(inputDelta) {
+     RB_UNUSED_PARAM;
+     
+@@ -525,18 +530,60 @@ RB_METHOD_GUARD_END
+ 
+ RB_METHOD_GUARD(inputSetClipboard) {
+     RB_UNUSED_PARAM;
+-    
++
+     VALUE str;
+     rb_scan_args(argc, argv, "1", &str);
+-    
++
+     SafeStringValue(str);
+-    
++
+     shState->input().setClipboardText(RSTRING_PTR(str));
+-    
++
+     return str;
+ }
+ RB_METHOD_GUARD_END
+ 
++RB_METHOD(inputNxSwkbd) {
++    RB_UNUSED_PARAM;
++    VALUE promptV = Qnil;
++    VALUE defaultV = Qnil;
++    VALUE maxLenV = Qnil;
++    rb_scan_args(argc, argv, "03", &promptV, &defaultV, &maxLenV);
++
++    const char *prompt = NIL_P(promptV) ? "" : StringValueCStr(promptV);
++    const char *defText = NIL_P(defaultV) ? "" : StringValueCStr(defaultV);
++    int maxLen = NIL_P(maxLenV) ? 32 : NUM2INT(maxLenV);
++    if (maxLen <= 0 || maxLen > 255) maxLen = 32;
++
++#ifdef __SWITCH__
++    if (!shState->config().nxrpg.enableSoftwareKeyboard) {
++        return rb_utf8_str_new_cstr(defText);
++    }
++    SwkbdConfig kbd;
++    if (R_FAILED(swkbdCreate(&kbd, 0))) {
++        return Qnil;
++    }
++    swkbdConfigMakePresetDefault(&kbd);
++    if (prompt && prompt[0] != '\0') {
++        swkbdConfigSetHeaderText(&kbd, prompt);
++    }
++    if (defText && defText[0] != '\0') {
++        swkbdConfigSetInitialText(&kbd, defText);
++    }
++    swkbdConfigSetStringLenMax(&kbd, static_cast<u32>(maxLen));
++    char outBuf[512] = {};
++    Result rc = swkbdShow(&kbd, outBuf, sizeof(outBuf));
++    swkbdClose(&kbd);
++    if (R_SUCCEEDED(rc)) {
++        return rb_utf8_str_new_cstr(outBuf);
++    }
++    return Qnil;
++#else
++    (void)prompt;
++    (void)maxLen;
++    return rb_utf8_str_new_cstr(defText);
++#endif
++}
++
+ struct {
+     const char *str;
+     Input::ButtonCode val;
+@@ -620,6 +667,7 @@ void inputBindingInit() {
+     
+     _rb_define_module_function(module, "clipboard", inputGetClipboard);
+     _rb_define_module_function(module, "clipboard=", inputSetClipboard);
++    _rb_define_module_function(module, "nx_swkbd", inputNxSwkbd);
+     
+     if (rgssVer >= 3) {
+         VALUE symHash = rb_hash_new();
+diff --git a/src/config.cpp b/src/config.cpp
+index 46f5941..3f15a95 100644
+--- a/src/config.cpp
++++ b/src/config.cpp
+@@ -269,6 +269,7 @@ try { exp } catch (...) {}
+                 auto &ro = mo["runtime"].as_object();
+                 GUARD(opts["rgssVersion"] = ro["rgssVersion"];)
+                 GUARD(nxrpg.cpuProfile = ro["cpuProfile"].as_string();)
++                GUARD(nxrpg.enableSoftwareKeyboard = ro["enableSoftwareKeyboard"].as_boolean();)
+             }
+             if (mo["video"].is_object()) {
+                 auto &vo = mo["video"].as_object();
+diff --git a/src/config.h b/src/config.h
+index 27cef4c..fe42cdf 100644
+--- a/src/config.h
++++ b/src/config.h
+@@ -127,6 +127,7 @@ struct Config {
+         std::string logPath;
+         std::string cpuProfile = "stock_1020";
+         bool swapConfirmCancel = false;
++        bool enableSoftwareKeyboard = true;
+         std::vector<std::string> exitCombo = {"L", "R", "PLUS"};
+     } nxrpg;
+     float fontScale;

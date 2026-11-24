@@ -37,6 +37,17 @@ void DiagnosticsTab::refresh() {
   header->setTitle(i18n_->translate("tabs.diagnostics", "Environment & Logs"));
   list_box_->addView(header);
 
+  auto* cleanup_btn = new brls::DetailCell();
+  cleanup_btn->setText(i18n_->translate("actions.cleanup_tmp", "Clean .tmp & Refresh"));
+  cleanup_btn->setDetailText("Removes orphaned *.tmp files across config/, cache/, runtime/, saves/");
+  cleanup_btn->registerClickAction([this](brls::View*) {
+    std::size_t n = EnvironmentDoctor::cleanup_orphaned_tmp_files(ctx_.sd_root);
+    brls::Application::notify("Cleaned " + std::to_string(n) + " orphaned .tmp file(s)");
+    refresh();
+    return true;
+  });
+  list_box_->addView(cleanup_btn);
+
   auto items = EnvironmentDoctor::run_all_checks(ctx_.memory_mode, ctx_.sd_root);
   for (const auto& item : items) {
     auto* cell = new brls::DetailCell();
@@ -57,6 +68,10 @@ void DiagnosticsTab::refresh() {
   if (log_sum.exists) {
     auto* log_header = new brls::Header();
     log_header->setTitle(i18n_->translate("actions.view_last_log", "Last Run Log"));
+    if (log_sum.has_fatal) {
+      log_header->setSubtitle("FATAL [" + log_sum.fatal_core + "/" + log_sum.fatal_code + "] " +
+                              log_sum.fatal_message);
+    }
     list_box_->addView(log_header);
 
     for (const auto& line : log_sum.tail_lines) {

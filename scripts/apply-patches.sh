@@ -75,18 +75,36 @@ for entry in "${ENTRIES[@]}"; do
     continue
   fi
 
+  PATCH_PATHS=()
   for patch_name in "${PATCHES[@]}"; do
     patch_path="$patch_dir/$patch_name"
     if [[ ! -f "$patch_path" ]]; then
       echo "Error: patch listed in $series_rel does not exist: $patch_path" >&2
       exit 1
     fi
-    if [[ $CHECK_ONLY -eq 1 ]]; then
-      echo ">>> [$key] Checking $patch_name..."
-      git -C "$checkout_dir" apply --check "$patch_path"
-    else
-      echo ">>> [$key] Applying $patch_name..."
-      git -C "$checkout_dir" apply "$patch_path"
-    fi
+    PATCH_PATHS+=("$patch_path")
   done
+
+  if [[ $CHECK_ONLY -eq 1 ]]; then
+    echo ">>> [$key] Checking patch queue (${#PATCH_PATHS[@]} patches)..."
+    tmp_wt="$(mktemp -d)"
+    git -C "$checkout_dir" worktree add --detach --quiet "$tmp_wt" HEAD
+    check_rc=0
+    for patch_path in "${PATCH_PATHS[@]}"; do
+      echo "    -> $(basename "$patch_path")"
+      if ! git -C "$tmp_wt" apply "$patch_path"; then
+        check_rc=1
+        break
+      fi
+    done
+    git -C "$checkout_dir" worktree remove --force "$tmp_wt" >/dev/null 2>&1 || rm -rf "$tmp_wt"
+    if [[ $check_rc -ne 0 ]]; then
+      exit $check_rc
+    fi
+  else
+    for patch_path in "${PATCH_PATHS[@]}"; do
+      echo ">>> [$key] Applying $(basename "$patch_path")..."
+      git -C "$checkout_dir" apply "$patch_path"
+    done
+  fi
 done

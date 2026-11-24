@@ -11,6 +11,7 @@ add_library(nxrpg_common STATIC
   src/encoding.cpp
   src/paths.cpp
   src/engine_detector.cpp
+  src/cover_extractor.cpp
   src/launch_manifest.cpp
   src/config_merger.cpp
   src/chainload.cpp

@@ -1,0 +1,80 @@
+diff --git a/src/platform/switch/main.cpp b/src/platform/switch/main.cpp
+index 4c96fe0..ff68ab1 100644
+--- a/src/platform/switch/main.cpp
++++ b/src/platform/switch/main.cpp
+@@ -32,6 +32,32 @@ namespace nxrpg_bridge {
+ 	uint64_t exit_combo_mask = HidNpadButton_L | HidNpadButton_R | HidNpadButton_Plus;
+ 	bool swap_confirm_cancel = false;
+ 	bool enable_touch = true;
++	bool enable_swkbd = true;
++
++	bool ShowSwitchKeyboard(const std::string& initial, int max_len, std::string& out_text) {
++		if (!enable_swkbd) {
++			return false;
++		}
++		SwkbdConfig kbd;
++		if (R_FAILED(swkbdCreate(&kbd, 0))) {
++			return false;
++		}
++		swkbdConfigMakePresetDefault(&kbd);
++		swkbdConfigSetInitialText(&kbd, initial.c_str());
++		if (max_len > 0) {
++			swkbdConfigSetStringLenMax(&kbd, static_cast<u32>(max_len));
++		}
++		char buf[256] = {};
++		Player::Pause();
++		Result rc = swkbdShow(&kbd, buf, sizeof(buf));
++		Player::Resume();
++		swkbdClose(&kbd);
++		if (R_SUCCEEDED(rc)) {
++			out_text = buf;
++			return true;
++		}
++		return false;
++	}
+ }
+ 
+ namespace {
+@@ -182,6 +208,7 @@ namespace {
+ 		bool vsync = ExtractJsonBool(json, "vsync", true);
+ 		bool show_fps = ExtractJsonBool(json, "showFps", false);
+ 		nxrpg_bridge::enable_touch = ExtractJsonBool(json, "enableTouch", true);
++		nxrpg_bridge::enable_swkbd = ExtractJsonBool(json, "enableSoftwareKeyboard", true);
+ 		nxrpg_bridge::swap_confirm_cancel = ExtractJsonBool(json, "swapConfirmCancel", false);
+ 		nxrpg_bridge::exit_combo_mask = ExtractExitComboMask(json);
+ 
+diff --git a/src/scene_name.cpp b/src/scene_name.cpp
+index f6b86e6..8e4a1d5 100644
+--- a/src/scene_name.cpp
++++ b/src/scene_name.cpp
+@@ -25,6 +25,12 @@
+ #include "player.h"
+ #include "output.h"
+ 
++#ifdef __SWITCH__
++namespace nxrpg_bridge {
++	bool ShowSwitchKeyboard(const std::string& initial, int max_len, std::string& out_text);
++}
++#endif
++
+ Scene_Name::Scene_Name(Game_Actor& actor, int charset, bool use_default_name)
+ 	: layout_index(charset), use_default_name(use_default_name), actor(actor)
+ {
+@@ -103,6 +109,17 @@ void Scene_Name::vUpdate() {
+ 	kbd_window->Update();
+ 	name_window->Update();
+ 
++#ifdef __SWITCH__
++	if (Input::IsTriggered(Input::SHIFT)) {
++		std::string entered;
++		if (nxrpg_bridge::ShowSwitchKeyboard(name_window->Get(), 16, entered) && !entered.empty()) {
++			name_window->Set(entered);
++			name_window->Refresh();
++		}
++		return;
++	}
++#endif
++
+ 	if (Input::IsTriggered(Input::CANCEL)) {
+ 		if (name_window->Get().size() > 0) {
+ 			Main_Data::game_system->SePlay(Main_Data::game_system->GetSystemSE(Main_Data::game_system->SFX_Cancel));

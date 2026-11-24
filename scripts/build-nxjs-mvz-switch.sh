@@ -18,10 +18,11 @@ fi
 git config --global --add safe.directory "$ROOT_DIR" >/dev/null 2>&1 || true
 git config --global --add safe.directory "$NXJS_DIR" >/dev/null 2>&1 || true
 
-# Apply 0001-applet-bind-env-set-next-load.patch if not already applied
-if git -C "$NXJS_DIR" apply --check "$MVZ_DIR/patches/0001-applet-bind-env-set-next-load.patch" 2>/dev/null; then
-  bash "$ROOT_DIR/scripts/apply-patches.sh" nxjs-mvz
-fi
+# Re-apply the full SERIES patch queue on a clean upstream tree so updated
+# patches always take effect (build-from-clean; upstream HEAD is the base).
+echo ">>> Resetting nx.js tree to upstream HEAD for clean patch application..."
+git -C "$NXJS_DIR" reset --hard -q HEAD
+bash "$ROOT_DIR/scripts/apply-patches.sh" nxjs-mvz
 
 # Step 1: Build patched nx.js runtime + nxjs.nro if switch-v8 is present
 if [[ -n "${DEVKITPRO:-}" ]] && [[ -f "$DEVKITPRO/portlibs/switch/lib/libv8_monolith.a" ]]; then

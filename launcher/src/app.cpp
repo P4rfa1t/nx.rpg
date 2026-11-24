@@ -32,6 +32,10 @@ int LauncherApp::run(const BootContext& ctx) {
   // Clean up any orphaned `.tmp` files from an earlier crash before rendering UI
   (void)EnvironmentDoctor::cleanup_orphaned_tmp_files(ctx.sd_root);
 
+  if (ctx.returned_from_core) {
+    (void)finalize_active_session(ctx.sd_root);
+  }
+
   brls::Application::createWindow(i18n->translate("app.title", "nx.rpg"));
   brls::Application::setGlobalQuit(false);
 

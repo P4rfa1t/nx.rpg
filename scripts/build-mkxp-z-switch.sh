@@ -28,18 +28,28 @@ rm -rf "$SRC_STAGE" "$BUILD_DIR" "$ROMFS_STAGE"
 mkdir -p "$SRC_STAGE"
 tar -C "$MKXP_DIR" --exclude=.git -cf - . | tar -C "$SRC_STAGE" -xf -
 
-# Normalize CRLF in staged copy if checked out on Windows, then apply patch queue if needed
-if ! grep -q "host_machine_is_horizon" "$SRC_STAGE/subprojects/common/sonametool.py"; then
-  git -C "$SRC_STAGE" init -q
-  git -C "$SRC_STAGE" config core.autocrlf false
-  for p in 0001-meson-horizon-host-and-nro-target.patch \
-           0002-switch-nxrpg-manifest-config-loader.patch \
-           0003-switch-sdl2-gamepad-exitcombo-and-chainload.patch; do
-    git -C "$SRC_STAGE" apply --ignore-whitespace "$ROOT_DIR/cores/mkxp-z/patches/$p"
-  done
+# Re-apply the full SERIES patch queue on a clean staged tree so updated
+# patches always take effect; a leftover marker means the stage is stale.
+if grep -q "host_machine_is_horizon" "$SRC_STAGE/subprojects/common/sonametool.py" 2>/dev/null; then
+  echo ">>> Re-staging mkxp-z source (previous stage already patched)..."
+  rm -rf "$SRC_STAGE"
+  mkdir -p "$SRC_STAGE"
+  tar -C "$MKXP_DIR" --exclude=.git -cf - . | tar -C "$SRC_STAGE" -xf -
 fi
 
+# Normalize CRLF in staged copy, then apply the full SERIES queue in order.
+# Wrap diff files under subprojects/packagefiles must be LF or Meson's
+# subproject extraction aborts before ruby-3_1_3 materializes.
 find "$SRC_STAGE/subprojects/packagefiles" -type f -exec sed -i 's/\r$//' {} +
+sed -i 's/\r$//' "$SRC_STAGE"/meson.build "$SRC_STAGE"/meson_options.txt 2>/dev/null || true
+git -C "$SRC_STAGE" init -q
+git -C "$SRC_STAGE" config core.autocrlf false
+for p in 0001-meson-horizon-host-and-nro-target.patch \
+         0002-switch-nxrpg-manifest-config-loader.patch \
+         0003-switch-sdl2-gamepad-exitcombo-and-chainload.patch \
+         0004-switch-swkbd-text-input-binding.patch; do
+  git -C "$SRC_STAGE" apply --ignore-whitespace "$ROOT_DIR/cores/mkxp-z/patches/$p"
+done
 
 meson setup "$BUILD_DIR" "$SRC_STAGE" \
   --cross-file "$ROOT_DIR/cores/mkxp-z/cross/switch-aarch64.ini" \

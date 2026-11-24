@@ -6,6 +6,7 @@
 
 #include "launcher/app.hpp"
 #include "launcher/services/i18n_service.hpp"
+#include "launcher/services/library_service.hpp"
 #include "nxrpg/engine_detector.hpp"
 
 #ifdef NXRPG_HAS_BOREALIS
@@ -17,23 +18,25 @@ namespace nxrpg::launcher::views {
 /// Game detail drawer / activity allowing:
 /// - Immediate launch (`A`)
 /// - Per-game overrides (`Y` -> encoding, CPU boost, scaling, RTP override, Win32API stubs, NW.js mode)
-/// - Open game save folder info & play time stats
+/// - Isolated save folder info, favorite toggle, and play time stats
 #ifdef NXRPG_HAS_BOREALIS
 class GameDetailActivity : public brls::Activity {
  public:
   GameDetailActivity(
-      DetectedGame game,
+      LibraryEntry entry,
       BootContext ctx,
       std::shared_ptr<I18nService> i18n,
-      std::function<void(const DetectedGame&)> on_launch);
+      std::function<void(const DetectedGame&)> on_launch,
+      std::function<void()> on_changed = nullptr);
 
   brls::View* createContentView() override;
 
  private:
-  DetectedGame game_;
+  LibraryEntry entry_;
   BootContext ctx_;
   std::shared_ptr<I18nService> i18n_;
   std::function<void(const DetectedGame&)> on_launch_;
+  std::function<void()> on_changed_;
 };
 #else
 class GameDetailActivity {
