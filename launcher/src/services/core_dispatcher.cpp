@@ -9,6 +9,7 @@
 #include "nxrpg/chainload.hpp"
 #include "nxrpg/config_merger.hpp"
 #include "nxrpg/json.hpp"
+#include "nxrpg/logger.hpp"
 #include "nxrpg/paths.hpp"
 
 namespace nxrpg::launcher {
@@ -143,8 +144,17 @@ bool CoreDispatcher::dispatch(
 
   const fs::path manifest_path = sd_root / "runtime/launch.json";
   if (!manifest.save_to_file_atomic(manifest_path)) {
+    NXLOG_ERROR("dispatch", "failed to write launch manifest: %s",
+                manifest_path.generic_string().c_str());
     return false;
   }
+  NXLOG_INFO("dispatch",
+             "game=%s engine=%s core=%s session=%s manifest=%s",
+             manifest.game.id.c_str(),
+             std::string(to_string(manifest.game.engine)).c_str(),
+             std::string(to_string(manifest.game.core)).c_str(),
+             manifest.session_id.c_str(),
+             manifest_path.generic_string().c_str());
 
   (void)ConfigService::update_last_selected_game(sd_root, game.id);
 
@@ -160,9 +170,17 @@ bool CoreDispatcher::dispatch(
   }
 
   if (!arm_chainload) {
+    NXLOG_DEBUG("dispatch", "dry-run dispatch complete (chainload not armed)");
     return true;
   }
-  return Chainloader::schedule_core_launch(manifest);
+  if (Chainloader::schedule_core_launch(manifest)) {
+    NXLOG_INFO("dispatch", "chainload armed: %s",
+               paths::core_nro_path(manifest.game.core).c_str());
+    return true;
+  }
+  NXLOG_ERROR("dispatch", "chainload scheduling failed for game=%s",
+              manifest.game.id.c_str());
+  return false;
 }
 
 }  // namespace nxrpg::launcher

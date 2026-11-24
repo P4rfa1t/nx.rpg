@@ -8,6 +8,7 @@
 
 #include "launcher/services/library_service.hpp"
 #include "nxrpg/json.hpp"
+#include "nxrpg/logger.hpp"
 
 #if defined(__SWITCH__) || defined(NINTENDO_SWITCH)
 #include <switch.h>
@@ -82,11 +83,17 @@ bool LauncherApp::finalize_active_session(
   std::uint64_t start_u = static_cast<std::uint64_t>(*started);
   std::uint64_t elapsed = (now_epoch > start_u) ? (now_epoch - start_u) : 0;
   if (elapsed > 24ULL * 3600ULL) {
-    elapsed = 0;  // Guard against RTC jumps
+    NXLOG_WARN("session", "elapsed %llu s exceeds 24h cap (RTC jump?), recording 0",
+               static_cast<unsigned long long>(elapsed));
+    elapsed = 0;
   }
 
   LibraryService lib(sd_root);
-  return lib.record_play_session(*gid, now_epoch, elapsed);
+  const bool ok = lib.record_play_session(*gid, now_epoch, elapsed);
+  NXLOG_INFO("session", "game=%s played %llu s -> %s",
+             gid->c_str(), static_cast<unsigned long long>(elapsed),
+             ok ? "recorded" : "NOT recorded");
+  return ok;
 }
 
 }  // namespace nxrpg::launcher

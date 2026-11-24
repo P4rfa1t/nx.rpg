@@ -15,6 +15,7 @@ add_library(nxrpg_common STATIC
   src/launch_manifest.cpp
   src/config_merger.cpp
   src/chainload.cpp
+  src/logger.cpp
 )
 
 target_include_directories(nxrpg_common PUBLIC

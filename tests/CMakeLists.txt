@@ -17,6 +17,7 @@ foreach(test_name IN ITEMS
   test_config_merger
   test_case_path
   test_chainload_argv
+  test_logger
 )
   add_executable(${test_name} "${test_name}.cpp")
   target_link_libraries(${test_name} PRIVATE nxrpg_common)

@@ -80,6 +80,20 @@ void DiagnosticsTab::refresh() {
       list_box_->addView(lbl);
     }
   }
+
+  auto launcher_log_sum = EnvironmentDoctor::inspect_last_run_log(
+      std::filesystem::path(ctx_.sd_root) / "runtime/launcher.log", 30);
+  if (launcher_log_sum.exists) {
+    auto* launcher_log_header = new brls::Header();
+    launcher_log_header->setTitle(i18n_->translate("diagnostics.launcher_log", "Launcher Log"));
+    list_box_->addView(launcher_log_header);
+
+    for (const auto& line : launcher_log_sum.tail_lines) {
+      auto* lbl = new brls::Label();
+      lbl->setText(line);
+      list_box_->addView(lbl);
+    }
+  }
 }
 
 #else

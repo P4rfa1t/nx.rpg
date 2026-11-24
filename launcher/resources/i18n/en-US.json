@@ -53,5 +53,8 @@
     "missing_game": "Game directory no longer exists.",
     "missing_rtp_confirm": "This game may require shared RTP assets, but the RTP pool is empty. Launch anyway?",
     "applet_confirm_title": "Applet Mode Memory Warning"
+  },
+  "diagnostics": {
+    "launcher_log": "Launcher Log"
   }
 }
