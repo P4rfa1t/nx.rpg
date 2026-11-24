@@ -169,6 +169,41 @@ def main() -> None:
         if not (ROOT / rel).is_file():
             fail(f"Missing required project file: {rel}")
     print(f"  [OK] Verified {len(required_paths)} core docs and module skeleton files")
+
+    # 6. Verify Switch NRO icon invariants (256x256 Baseline DCT JPEG, no SOF2/EXIF)
+    icon_path = ROOT / "assets/icon.jpg"
+    if not icon_path.is_file():
+        fail("Missing assets/icon.jpg")
+    icon_bytes = icon_path.read_bytes()
+    if len(icon_bytes) < 4 or icon_bytes[:2] != b"\xFF\xD8":
+        fail("assets/icon.jpg is not a valid JPEG")
+    idx = 2
+    sof0 = False
+    dims = None
+    while idx < len(icon_bytes) - 1:
+        if icon_bytes[idx] != 0xFF:
+            idx += 1
+            continue
+        marker = icon_bytes[idx + 1]
+        if marker in (0xDA, 0xD9):
+            break
+        if marker in (0x00, 0x01) or (0xD0 <= marker <= 0xD8):
+            idx += 2
+            continue
+        seg_len = int.from_bytes(icon_bytes[idx + 2 : idx + 4], "big")
+        if marker == 0xC0:
+            sof0 = True
+            h = int.from_bytes(icon_bytes[idx + 5 : idx + 7], "big")
+            w = int.from_bytes(icon_bytes[idx + 7 : idx + 9], "big")
+            dims = (w, h)
+        elif marker == 0xC2:
+            fail("assets/icon.jpg must be Baseline DCT JPEG (SOF0), not Progressive (SOF2)")
+        elif marker == 0xE1:
+            fail("assets/icon.jpg must not contain APP1/EXIF thumbnail metadata")
+        idx += 2 + seg_len
+    if not sof0 or dims != (256, 256):
+        fail(f"assets/icon.jpg must be 256x256 Baseline JPEG, got sof0={sof0}, dims={dims}")
+    print("  [OK] Verified assets/icon.jpg (256x256 Baseline DCT JPEG, no EXIF/Progressive)")
     print("All repository contract checks passed.")
 
 

@@ -1,0 +1,127 @@
+diff --git a/src/config.cpp b/src/config.cpp
+index c9aae20..46f5941 100644
+--- a/src/config.cpp
++++ b/src/config.cpp
+@@ -219,21 +219,98 @@ try { exp } catch (...) {}
+     editor.debug = false;
+     editor.battleTest = false;
+     
++    std::string nxrpgManifestPath;
+     if (argc > 1) {
+         if (!strcmp(argv[1], "debug") || !strcmp(argv[1], "test"))
+             editor.debug = true;
+         else if (!strcmp(argv[1], "btest"))
+             editor.battleTest = true;
+-        
++
+         for (int i = 1; i < argc; i++) {
++            if (!strcmp(argv[i], "--nxrpg-manifest") && i + 1 < argc) {
++                nxrpgManifestPath = argv[++i];
++                continue;
++            }
++            if (!strncmp(argv[i], "--nxrpg-manifest=", 17)) {
++                nxrpgManifestPath = argv[i] + 17;
++                continue;
++            }
+             if (strcmp(argv[i], "debug"))
+                 launchArgs.push_back(argv[i]);
+         }
+     }
+-    
++
+     json::value baseConf = readConfFile(CONF_FILE);
+     copyObject(optsJ, baseConf);
+     copyObject(opts["bindingNames"], baseConf.as_object()["bindingNames"], "bindingNames .");
++
++    if (!nxrpgManifestPath.empty()) {
++        json::value m = readConfFile(nxrpgManifestPath.c_str());
++        if (m.is_object()) {
++            nxrpg.active = true;
++            auto &mo = m.as_object();
++            GUARD(nxrpg.returnTo = mo["returnTo"].as_string();)
++            GUARD(nxrpg.logPath = mo["logPath"].as_string();)
++            if (mo["game"].is_object()) {
++                auto &go = mo["game"].as_object();
++                GUARD(nxrpg.gameId = go["id"].as_string();)
++                GUARD(nxrpg.savePath = go["savePath"].as_string();)
++                GUARD(opts["gameFolder"] = go["contentRoot"];)
++                GUARD(opts["execName"] = go["execName"];)
++                GUARD(opts["windowTitle"] = go["title"];)
++            }
++            if (mo["assets"].is_object()) {
++                auto &ao = mo["assets"].as_object();
++                if (ao["rtpPath"].is_string() && !ao["rtpPath"].as_string().empty()) {
++                    opts["RTP"] = json::array({ao["rtpPath"]});
++                }
++            }
++            if (mo["runtime"].is_object()) {
++                auto &ro = mo["runtime"].as_object();
++                GUARD(opts["rgssVersion"] = ro["rgssVersion"];)
++                GUARD(nxrpg.cpuProfile = ro["cpuProfile"].as_string();)
++            }
++            if (mo["video"].is_object()) {
++                auto &vo = mo["video"].as_object();
++                GUARD(opts["vsync"] = vo["vsync"];)
++                GUARD(opts["displayFPS"] = vo["showFps"];)
++                GUARD(opts["integerScalingActive"] = vo["integerScale"];)
++                if (vo["scalingMode"].is_string()) {
++                    opts["fixedAspectRatio"] = (vo["scalingMode"].as_string() != "stretch");
++                }
++            }
++            if (mo["input"].is_object()) {
++                auto &io = mo["input"].as_object();
++                GUARD(nxrpg.swapConfirmCancel = io["swapConfirmCancel"].as_boolean();)
++                if (io["exitCombo"].is_array()) {
++                    nxrpg.exitCombo.clear();
++                    fillStringVec(io["exitCombo"], nxrpg.exitCombo);
++                }
++            }
++            bool enableWin32Stubs = true;
++            if (mo["coreOptions"].is_object() && mo["coreOptions"].as_object()["mkxp"].is_object()) {
++                auto &ko = mo["coreOptions"].as_object()["mkxp"].as_object();
++                GUARD(enableWin32Stubs = ko["enableWin32ApiStubs"].as_boolean();)
++                GUARD(opts["smoothScaling"] = ko["smoothScaling"];)
++                GUARD(opts["frameSkip"] = ko["frameSkip"];)
++                GUARD(opts["subImageFix"] = ko["subImageFix"];)
++                if (ko["solidFonts"].is_boolean() && ko["solidFonts"].as_boolean()) {
++                    opts["solidFonts"] = json::array({"*"});
++                }
++            }
++            if (!nxrpg.savePath.empty()) {
++#ifndef _WIN32
++                setenv("NXRPG_SAVE_DIR", nxrpg.savePath.c_str(), 1);
++#endif
++                auto preloads = json::array({"romfs:/preload/00_nxrpg_save_redirect.rb"});
++                if (enableWin32Stubs) {
++                    preloads.as_array().push_back("romfs:/preload/win32_wrap.rb");
++                    preloads.as_array().push_back("romfs:/preload/01_nxrpg_win32_ext.rb");
++                }
++                opts["preloadScript"] = preloads;
++            }
++        }
++    }
+     
+ #define SET_OPT_CUSTOMKEY(var, key, type) GUARD(var = opts[#key].as_##type();)
+ #define SET_OPT(var, type) SET_OPT_CUSTOMKEY(var, var, type)
+diff --git a/src/config.h b/src/config.h
+index ae7c535..27cef4c 100644
+--- a/src/config.h
++++ b/src/config.h
+@@ -118,6 +118,17 @@ struct Config {
+     std::vector<std::string> patches;
+     
+     std::vector<std::string> fontSubs;
++
++    struct {
++        bool active = false;
++        std::string gameId;
++        std::string savePath;
++        std::string returnTo;
++        std::string logPath;
++        std::string cpuProfile = "stock_1020";
++        bool swapConfirmCancel = false;
++        std::vector<std::string> exitCombo = {"L", "R", "PLUS"};
++    } nxrpg;
+     float fontScale;
+     bool fontKerning;
+     int fontHinting;

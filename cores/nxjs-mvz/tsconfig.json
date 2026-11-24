@@ -6,8 +6,7 @@
     "strict": true,
     "noEmit": true,
     "skipLibCheck": true,
-    "isolatedModules": true,
-    "types": ["@nx.js/runtime"]
+    "isolatedModules": true
   },
-  "include": ["shim/src/**/*.ts"]
+  "include": ["shim/src/**/*.ts", "shim/tests/**/*.ts"]
 }

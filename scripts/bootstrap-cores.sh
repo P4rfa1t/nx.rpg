@@ -68,6 +68,7 @@ for entry in "${ENTRIES[@]}"; do
   if [[ ! -d "$target_dir/.git" ]]; then
     echo ">>> [$key] Initializing git checkout at $checkout_rel..."
     git init "$target_dir"
+    git -C "$target_dir" config core.autocrlf false
     git -C "$target_dir" remote add origin "$repo_url"
   fi
 

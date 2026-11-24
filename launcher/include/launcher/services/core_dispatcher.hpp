@@ -1,8 +1,10 @@
 #pragma once
 
+#include <filesystem>
 #include <string>
 
 #include "nxrpg/engine_detector.hpp"
+#include "nxrpg/paths.hpp"
 #include "nxrpg/types.hpp"
 
 namespace nxrpg::launcher {
@@ -28,9 +30,19 @@ class CoreDispatcher {
       const DetectedGame& game,
       MemoryExecutionMode memory_mode);
 
+  [[nodiscard]] static LaunchPrecheckResult precheck(
+      const DetectedGame& game,
+      MemoryExecutionMode memory_mode,
+      const std::filesystem::path& sd_root);
+
   /// Merges configs, writes `runtime/launch.json`, records `lastSelectedGameId`,
-  /// arms `Chainloader::schedule_core_launch`, and requests Borealis exit.
+  /// arms `Chainloader::schedule_core_launch`, and returns whether chainload was armed.
   [[nodiscard]] static bool dispatch(const DetectedGame& game);
+
+  [[nodiscard]] static bool dispatch(
+      const DetectedGame& game,
+      const std::filesystem::path& sd_root,
+      bool arm_chainload = true);
 };
 
 }  // namespace nxrpg::launcher

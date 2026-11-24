@@ -1,0 +1,711 @@
+diff --git a/meson.build b/meson.build
+index 2b3dc51..0501125 100644
+--- a/meson.build
++++ b/meson.build
+@@ -7,7 +7,11 @@ gplv3_features = []
+ 
+ host_system = host_machine.system()
+ host_endian = host_machine.endian()
+-exe_name = meson.project_name() + '.' + host_machine.cpu()
++if host_system == 'horizon'
++    exe_name = meson.project_name() + '.elf'
++else
++    exe_name = meson.project_name() + '.' + host_machine.cpu()
++endif
+ 
+ is_bsd = host_system in ['dragonfly', 'freebsd', 'netbsd', 'openbsd']
+ is_unix = is_bsd or host_system in ['linux']
+diff --git a/src/filesystem/ghc/filesystem.hpp b/src/filesystem/ghc/filesystem.hpp
+index 12bd8cc..ed09f99 100644
+--- a/src/filesystem/ghc/filesystem.hpp
++++ b/src/filesystem/ghc/filesystem.hpp
+@@ -54,7 +54,7 @@
+ #ifndef GHC_OS_DETECTED
+ #if defined(__APPLE__) && defined(__MACH__)
+ #define GHC_OS_MACOS
+-#elif defined(__linux__)
++#elif defined(__linux__) || defined(__SWITCH__)
+ #define GHC_OS_LINUX
+ #if defined(__ANDROID__)
+ #define GHC_OS_ANDROID
+diff --git a/src/meson.build b/src/meson.build
+index 4057c6b..4fce8f9 100755
+--- a/src/meson.build
++++ b/src/meson.build
+@@ -825,7 +825,7 @@ if not sdl2_ttf.found()
+ endif
+ global_dependencies += sdl2_ttf
+ 
+-if sdl2_ttf.type_name() == 'internal'
++if sdl2_ttf.type_name() == 'internal' or host_system == 'horizon'
+     global_args += '-DMKXPZ_TTF_FONT=_TTF_Font'
+ elif meson.get_compiler('c').compiles('''
+     #include <SDL_ttf.h>
+@@ -1289,6 +1289,7 @@ main_source = files(
+     'net/LUrlParser.cpp',
+     'net/net.cpp',
+ 
++    host_system == 'horizon' ? 'switch_stubs.c' : [],
+     host_system == 'darwin' ? 'system/systemImplApple.mm' : 'system/systemImpl.cpp',
+ )
+ 
+diff --git a/src/net/net.cpp b/src/net/net.cpp
+index f51ac03..95d69d1 100644
+--- a/src/net/net.cpp
++++ b/src/net/net.cpp
+@@ -7,6 +7,33 @@
+ 
+ #include <stdio.h>
+ 
++#ifdef __SWITCH__
++#include "util/exception.h"
++#include "net.h"
++
++using namespace mkxp_net;
++
++HTTPResponse::HTTPResponse() : _headers(StringMap()), _status(0), _body(std::string()) {}
++HTTPResponse::~HTTPResponse() {}
++std::string &HTTPResponse::body() { return _body; }
++StringMap &HTTPResponse::headers() { return _headers; }
++int HTTPResponse::status() { return _status; }
++
++HTTPRequest::HTTPRequest(const char *dest, bool follow_redirects)
++    : destination(std::string(dest ? dest : "")), _headers(StringMap()), follow_location(follow_redirects) {}
++HTTPRequest::~HTTPRequest() {}
++StringMap &HTTPRequest::headers() { return _headers; }
++
++HTTPResponse HTTPRequest::get() {
++    throw Exception(Exception::MKXPError, "HTTP GET disabled on Switch: %s", destination.c_str());
++}
++HTTPResponse HTTPRequest::post(StringMap &) {
++    throw Exception(Exception::MKXPError, "HTTP POST disabled on Switch: %s", destination.c_str());
++}
++HTTPResponse HTTPRequest::post(const char *, const char *) {
++    throw Exception(Exception::MKXPError, "HTTP POST disabled on Switch: %s", destination.c_str());
++}
++#else
+ #if defined(MKXPZ_SSL)
+ #define CPPHTTPLIB_OPENSSL_SUPPORT
+ #endif
+@@ -229,7 +256,7 @@ HTTPResponse HTTPRequest::post(const char *body, const char *content_type) {
+         auto response = result.value();
+         ret._status = response.status;
+         ret._body = response.body;
+-        
++
+         for (auto const &h : response.headers)
+             ret._headers.emplace(h.first, h.second);
+     }
+@@ -242,3 +269,4 @@ HTTPResponse HTTPRequest::post(const char *body, const char *content_type) {
+     delete client;
+     return ret;
+ }
++#endif // __SWITCH__
+diff --git a/src/switch_stubs.c b/src/switch_stubs.c
+new file mode 100644
+index 0000000..b39dfb3
+--- /dev/null
++++ b/src/switch_stubs.c
+@@ -0,0 +1,63 @@
++#ifdef __SWITCH__
++
++#include <errno.h>
++#include <stdio.h>
++#include <sys/types.h>
++#include <unistd.h>
++
++struct passwd;
++
++struct rusage_stub {
++    long ru_utime_sec;
++    long ru_utime_usec;
++    long ru_stime_sec;
++    long ru_stime_usec;
++    long pad[14];
++};
++
++__attribute__((weak)) uid_t getuid(void) { return 0; }
++__attribute__((weak)) uid_t geteuid(void) { return 0; }
++__attribute__((weak)) gid_t getgid(void) { return 0; }
++__attribute__((weak)) gid_t getegid(void) { return 0; }
++__attribute__((weak)) pid_t getppid(void) { return 1; }
++__attribute__((weak)) struct passwd *getpwnam(const char *name) { (void)name; return NULL; }
++__attribute__((weak)) void endpwent(void) {}
++__attribute__((weak)) int getrusage(int who, void *usage) {
++    (void)who;
++    if (usage) {
++        unsigned char *p = (unsigned char *)usage;
++        for (size_t i = 0; i < sizeof(struct rusage_stub); ++i) p[i] = 0;
++    }
++    return 0;
++}
++__attribute__((weak)) int chown(const char *path, uid_t owner, gid_t group) {
++    (void)path; (void)owner; (void)group;
++    return 0;
++}
++__attribute__((weak)) mode_t umask(mode_t mask) { (void)mask; return 022; }
++__attribute__((weak)) int pipe(int pipefd[2]) { (void)pipefd; errno = ENOSYS; return -1; }
++__attribute__((weak)) FILE *popen(const char *cmd, const char *type) {
++    (void)cmd; (void)type; errno = ENOSYS; return NULL;
++}
++__attribute__((weak)) int pclose(FILE *stream) { (void)stream; errno = ENOSYS; return -1; }
++__attribute__((weak)) int execl(const char *path, const char *arg, ...) {
++    (void)path; (void)arg; errno = ENOSYS; return -1;
++}
++__attribute__((weak)) int execle(const char *path, const char *arg, ...) {
++    (void)path; (void)arg; errno = ENOSYS; return -1;
++}
++__attribute__((weak)) int execv(const char *path, char *const argv[]) {
++    (void)path; (void)argv; errno = ENOSYS; return -1;
++}
++__attribute__((weak)) long sysconf(int name) {
++#ifdef _SC_PAGESIZE
++    if (name == _SC_PAGESIZE) return 4096;
++#endif
++#ifdef _SC_NPROCESSORS_ONLN
++    if (name == _SC_NPROCESSORS_ONLN) return 4;
++#endif
++    (void)name;
++    return 4096;
++}
++
++#endif
+diff --git a/src/system/system.h b/src/system/system.h
+index f406486..d9bc41f 100644
+--- a/src/system/system.h
++++ b/src/system/system.h
+@@ -14,11 +14,14 @@
+ #define MKXPZ_PLATFORM_MACOS 1
+ #define MKXPZ_PLATFORM_LINUX 2
+ #define MKXPZ_PLATFORM_BSD 3
++#define MKXPZ_PLATFORM_SWITCH 4
+ 
+ #ifdef __WIN32__
+ #define MKXPZ_PLATFORM MKXPZ_PLATFORM_WINDOWS
+ #elif defined __APPLE__
+ #define MKXPZ_PLATFORM MKXPZ_PLATFORM_MACOS
++#elif defined __SWITCH__
++#define MKXPZ_PLATFORM MKXPZ_PLATFORM_SWITCH
+ #elif defined __linux__
+ #define MKXPZ_PLATFORM MKXPZ_PLATFORM_LINUX
+ #elif defined __DragonFly__ || defined __FreeBSD__ || defined __NetBSD__ || defined __OpenBSD__
+diff --git a/src/system/systemImpl.cpp b/src/system/systemImpl.cpp
+index 090ab5b..37c5f81 100644
+--- a/src/system/systemImpl.cpp
++++ b/src/system/systemImpl.cpp
+@@ -25,6 +25,8 @@ std::string systemImpl::getSystemLanguage() {
+     LANGID lid = GetUserDefaultLangID();
+     LCIDToLocaleName(lid, wbuf, sizeof(wbuf), 0);
+     wcstombs(buf, wbuf, sizeof(buf));
++#elif defined(__SWITCH__)
++    strncpy(buf, "en_US", sizeof(buf));
+ #else
+     strncpy(buf, std::locale("").name().c_str(), sizeof(buf));
+ #endif
+@@ -49,6 +51,8 @@ std::string systemImpl::getUserName() {
+     // The Ruby binding gets the username from the environment loaded
+     // with Ruby instead, should fix getting it from WinAPI at some point
+     return std::string("unused");
++#elif defined(__SWITCH__)
++    return std::string("switch");
+ #else
+     char ret[30];
+     char *username = getenv("USER");
+diff --git a/src/util/rapidcsv.h b/src/util/rapidcsv.h
+index cad4cf8..d9a8071 100644
+--- a/src/util/rapidcsv.h
++++ b/src/util/rapidcsv.h
+@@ -232,7 +232,7 @@ namespace rapidcsv
+           }
+           else if (typeid(T) == typeid(long double))
+           {
+-            pVal = static_cast<T>(std::stold(pStr));
++            pVal = static_cast<T>(std::strtold(pStr.c_str(), nullptr));
+             return;
+           }
+         }
+diff --git a/subprojects/common/meson.build b/subprojects/common/meson.build
+index bc22d3a..7302cb7 100644
+--- a/subprojects/common/meson.build
++++ b/subprojects/common/meson.build
+@@ -39,7 +39,11 @@ if host_machine.system() in ['windows', 'cygwin']
+ else
+     host_triplet_os = host_machine.system()
+ endif
+-host_triplet = host_triplet_cpu + '-' + host_triplet_vendor + '-' + host_triplet_os
++if host_machine.system() == 'horizon'
++    host_triplet = host_machine.cpu_family() + '-none-elf'
++else
++    host_triplet = host_triplet_cpu + '-' + host_triplet_vendor + '-' + host_triplet_os
++endif
+ 
+ base_cflags = []
+ base_cppflags = []
+diff --git a/subprojects/common/sonametool.py b/subprojects/common/sonametool.py
+index 971cda7..ae3fc56 100644
+--- a/subprojects/common/sonametool.py
++++ b/subprojects/common/sonametool.py
+@@ -8,8 +8,11 @@ host_machine_is_darwin = host_machine_system == 'darwin'
+ host_machine_is_linux = host_machine_system == 'linux'
+ host_machine_is_unix = host_machine_is_bsd or host_machine_is_linux
+ host_machine_is_windows = host_machine_system in ('cygwin', 'windows')
++host_machine_is_horizon = host_machine_system == 'horizon'
+ 
+ def main() -> str:
++    if host_machine_is_horizon:
++        return 'lib' + library + '.a'
+     if library == 'decor-0':
+         if host_machine_is_unix:
+             return 'libdecor-0.so.0'
+diff --git a/subprojects/packagefiles/ruby-3.1-horizon-switch.patch b/subprojects/packagefiles/ruby-3.1-horizon-switch.patch
+new file mode 100644
+index 0000000..667d2b4
+--- /dev/null
++++ b/subprojects/packagefiles/ruby-3.1-horizon-switch.patch
+@@ -0,0 +1,275 @@
++diff -ruN a/ruby-3_1_3/cont.c b/ruby-3_1_3/cont.c
++--- a/cont.c	2022-11-24 10:20:31.000000000 +0000
+++++ b/cont.c	2026-11-24 11:05:44.663125592 +0000
++@@ -13,8 +13,10 @@
++ 
++ #ifndef _WIN32
++ #include <unistd.h>
+++#ifndef __SWITCH__
++ #include <sys/mman.h>
++ #endif
+++#endif
++ 
++ // On Solaris, madvise() is NOT declared for SUS (XPG4v2) or later,
++ // but MADV_* macros are defined when __EXTENSIONS__ is defined.
++@@ -431,6 +433,13 @@
++         else {
++             return base;
++         }
+++#elif defined(__SWITCH__)
+++        void * base = calloc(*count, stride);
+++        if (!base) {
+++            *count = (*count) >> 1;
+++        } else {
+++            return base;
+++        }
++ #else
++         errno = 0;
++         void * base = mmap(NULL, (*count)*stride, PROT_READ | PROT_WRITE, FIBER_STACK_FLAGS, -1, 0);
++@@ -503,6 +512,8 @@
++             VirtualFree(allocation->base, 0, MEM_RELEASE);
++             rb_raise(rb_eFiberError, "can't set a guard page: %s", ERRNOMSG);
++         }
+++#elif defined(__SWITCH__)
+++        (void)page;
++ #else
++         if (mprotect(page, RB_PAGE_SIZE, PROT_NONE) < 0) {
++             munmap(allocation->base, count*stride);
++@@ -582,6 +593,8 @@
++ 
++ #ifdef _WIN32
++     VirtualFree(allocation->base, 0, MEM_RELEASE);
+++#elif defined(__SWITCH__)
+++    free(allocation->base);
++ #else
++     munmap(allocation->base, allocation->stride * allocation->count);
++ #endif
++@@ -3240,6 +3253,8 @@
++     SYSTEM_INFO info;
++     GetSystemInfo(&info);
++     pagesize = info.dwPageSize;
+++#elif defined(__SWITCH__)
+++    pagesize = 4096;
++ #else /* not WIN32 */
++     pagesize = sysconf(_SC_PAGESIZE);
++ #endif
++diff -ruN a/ruby-3_1_3/gc.c b/ruby-3_1_3/gc.c
++--- a/gc.c	2022-11-24 10:20:31.000000000 +0000
+++++ b/gc.c	2026-11-24 11:05:44.671912208 +0000
++@@ -25,8 +25,10 @@
++ 
++ #ifndef _WIN32
++ #include <unistd.h>
+++#ifndef __SWITCH__
++ #include <sys/mman.h>
++ #endif
+++#endif
++ 
++ #include <setjmp.h>
++ #include <stdarg.h>
++@@ -4831,6 +4833,9 @@
++     DWORD old_protect;
++ 
++     if (!VirtualProtect(body, HEAP_PAGE_SIZE, PAGE_NOACCESS, &old_protect)) {
+++#elif defined(__SWITCH__)
+++    (void)objspace; (void)body;
+++    if (0) {
++ #else
++     if (mprotect(body, HEAP_PAGE_SIZE, PROT_NONE)) {
++ #endif
++@@ -4848,6 +4853,9 @@
++     DWORD old_protect;
++ 
++     if (!VirtualProtect(body, HEAP_PAGE_SIZE, PAGE_READWRITE, &old_protect)) {
+++#elif defined(__SWITCH__)
+++    (void)objspace; (void)body;
+++    if (0) {
++ #else
++     if (mprotect(body, HEAP_PAGE_SIZE, PROT_READ | PROT_WRITE)) {
++ #endif
++@@ -5044,6 +5052,10 @@
++     old_handler = SetUnhandledExceptionFilter(read_barrier_signal);
++ }
++ #else
+++#if defined(__SWITCH__)
+++static void uninstall_handlers(void) {}
+++static void install_handlers(void) {}
+++#else
++ static struct sigaction old_sigbus_handler;
++ static struct sigaction old_sigsegv_handler;
++ 
++@@ -5091,6 +5103,7 @@
++     sigaction(SIGSEGV, &action, &old_sigsegv_handler);
++ }
++ #endif
+++#endif
++ 
++ static void
++ revert_stack_objects(VALUE stack_obj, void *ctx)
++@@ -11156,6 +11169,7 @@
++     void *_aligned_malloc(size_t, size_t);
++     res = _aligned_malloc(size, alignment);
++ #else
+++#ifndef __SWITCH__
++     if (USE_MMAP_ALIGNED_ALLOC) {
++         GC_ASSERT(alignment % sysconf(_SC_PAGE_SIZE) == 0);
++ 
++@@ -11188,6 +11202,7 @@
++         res = (void *)aligned;
++     }
++     else {
+++#endif
++ # if defined(HAVE_POSIX_MEMALIGN)
++         if (posix_memalign(&res, alignment, size) != 0) {
++             return NULL;
++@@ -11202,8 +11217,10 @@
++         ((void**)aligned)[-1] = res;
++         res = (void*)aligned;
++ # endif
+++#ifndef __SWITCH__
++     }
++ #endif
+++#endif
++ 
++     /* alignment must be a power of 2 */
++     GC_ASSERT(((alignment - 1) & alignment) == 0);
++@@ -11219,6 +11236,7 @@
++ #elif defined _WIN32
++     _aligned_free(ptr);
++ #else
+++#ifndef __SWITCH__
++     if (USE_MMAP_ALIGNED_ALLOC) {
++         GC_ASSERT(size % sysconf(_SC_PAGE_SIZE) == 0);
++         if (munmap(ptr, size)) {
++@@ -11226,13 +11244,16 @@
++         }
++     }
++     else {
+++#endif
++ # if defined(HAVE_POSIX_MEMALIGN) || defined(HAVE_MEMALIGN)
++         free(ptr);
++ # else
++         free(((void**)ptr)[-1]);
++ # endif
+++#ifndef __SWITCH__
++     }
++ #endif
+++#endif
++ }
++ 
++ static inline size_t
++diff -ruN a/ruby-3_1_3/io_buffer.c b/ruby-3_1_3/io_buffer.c
++--- a/io_buffer.c	2022-11-24 10:20:31.000000000 +0000
+++++ b/io_buffer.c	2026-11-24 11:05:44.664339468 +0000
++@@ -27,8 +27,10 @@
++ #ifdef _WIN32
++ #else
++ #include <unistd.h>
+++#ifndef __SWITCH__
++ #include <sys/mman.h>
++ #endif
+++#endif
++ 
++ struct rb_io_buffer {
++     void *base;
++@@ -51,6 +53,11 @@
++     if (!base) {
++         rb_sys_fail("io_buffer_map_memory:VirtualAlloc");
++     }
+++#elif defined(__SWITCH__)
+++    void * base = calloc(1, size);
+++    if (!base) {
+++        rb_sys_fail("io_buffer_map_memory:calloc");
+++    }
++ #else
++     void * base = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
++ 
++@@ -98,6 +105,10 @@
++     }
++ 
++     data->mapping = mapping;
+++#elif defined(__SWITCH__)
+++    (void)descriptor; (void)offset; (void)size; (void)flags;
+++    void *base = NULL;
+++    rb_raise(rb_eNotImpError, "IO::Buffer.map(file) is unsupported on Switch");
++ #else
++     int protect = PROT_READ, access = 0;
++ 
++@@ -135,6 +146,9 @@
++ {
++ #ifdef _WIN32
++     VirtualFree(base, 0, MEM_RELEASE);
+++#elif defined(__SWITCH__)
+++    (void)size;
+++    free(base);
++ #else
++     munmap(base, size);
++ #endif
++@@ -2189,6 +2203,8 @@
++     SYSTEM_INFO info;
++     GetSystemInfo(&info);
++     RUBY_IO_BUFFER_PAGE_SIZE = info.dwPageSize;
+++#elif defined(__SWITCH__)
+++    RUBY_IO_BUFFER_PAGE_SIZE = 4096;
++ #else /* not WIN32 */
++     RUBY_IO_BUFFER_PAGE_SIZE = sysconf(_SC_PAGESIZE);
++ #endif
++diff -ruN a/ruby-3_1_3/io.c b/ruby-3_1_3/io.c
++--- a/io.c	2022-11-24 10:20:31.000000000 +0000
+++++ b/io.c	2026-11-24 11:05:44.673464480 +0000
++@@ -123,6 +123,9 @@
++ #include "internal.h"
++ #include "internal/encoding.h"
++ #include "internal/error.h"
+++#if defined(__SWITCH__) && defined(O_BINARY)
+++static inline int setmode(int fd, int mode) { (void)fd; (void)mode; return O_BINARY; }
+++#endif
++ #include "internal/inits.h"
++ #include "internal/io.h"
++ #include "internal/numeric.h"
++diff -ruN a/ruby-3_1_3/process.c b/ruby-3_1_3/process.c
++--- a/process.c	2022-11-24 10:20:31.000000000 +0000
+++++ b/process.c	2026-11-24 11:05:44.665660349 +0000
++@@ -1051,6 +1051,10 @@
++     return waitpid(pid, st, flags);
++ #elif defined HAVE_WAIT4
++     return wait4(pid, st, flags, NULL);
+++#elif defined(__SWITCH__)
+++    (void)pid; (void)st; (void)flags;
+++    errno = ECHILD;
+++    return -1;
++ #else
++ #  error waitpid or wait4 is required.
++ #endif
++diff -ruN a/ruby-3_1_3/thread_pthread.c b/ruby-3_1_3/thread_pthread.c
++--- a/thread_pthread.c	2022-11-24 10:20:31.000000000 +0000
+++++ b/thread_pthread.c	2026-11-24 11:05:44.667160541 +0000
++@@ -39,6 +39,9 @@
++ #endif
++ #include <time.h>
++ #include <signal.h>
+++#ifdef __SWITCH__
+++#include <poll.h>
+++#endif
++ 
++ #if defined(HAVE_SYS_EVENTFD_H) && defined(HAVE_EVENTFD)
++ #  define USE_EVENTFD (1)
++@@ -47,7 +50,7 @@
++ #  define USE_EVENTFD (0)
++ #endif
++ 
++-#if defined(SIGVTALRM) && !defined(__CYGWIN__) && !defined(__EMSCRIPTEN__)
+++#if defined(SIGVTALRM) && !defined(__CYGWIN__) && !defined(__EMSCRIPTEN__) && !defined(__SWITCH__)
++ #  define USE_UBF_LIST 1
++ #endif
++ 
++@@ -659,7 +662,9 @@
++     ruby_thread_set_native(th);
++     fill_thread_id_str(th);
++     native_thread_init(th);
+++#ifndef __SWITCH__
++     posix_signal(SIGVTALRM, null_func);
+++#endif
++ }
++ 
++ #ifdef RB_THREAD_T_HAS_NATIVE_ID
+diff --git a/subprojects/packagefiles/ruby-3.1/meson.build b/subprojects/packagefiles/ruby-3.1/meson.build
+index 05979e8..515efd0 100644
+--- a/subprojects/packagefiles/ruby-3.1/meson.build
++++ b/subprojects/packagefiles/ruby-3.1/meson.build
+@@ -36,6 +36,68 @@ ruby_deps = [
+     dependency('zlib', required: true),
+ ]
+ 
++if host_machine.system() == 'horizon'
++    ruby_ext_archives = [
++        meson.project_build_root() / 'build' / 'ext' / 'continuation' / 'continuation.a',
++        meson.project_build_root() / 'build' / 'ext' / 'date' / 'date_core.a',
++        meson.project_build_root() / 'build' / 'ext' / 'digest' / 'digest.a',
++        meson.project_build_root() / 'build' / 'ext' / 'etc' / 'etc.a',
++        meson.project_build_root() / 'build' / 'ext' / 'fcntl' / 'fcntl.a',
++        meson.project_build_root() / 'build' / 'ext' / 'monitor' / 'monitor.a',
++        meson.project_build_root() / 'build' / 'ext' / 'nkf' / 'nkf.a',
++        meson.project_build_root() / 'build' / 'ext' / 'pathname' / 'pathname.a',
++        meson.project_build_root() / 'build' / 'ext' / 'psych' / 'psych.a',
++        meson.project_build_root() / 'build' / 'ext' / 'stringio' / 'stringio.a',
++        meson.project_build_root() / 'build' / 'ext' / 'strscan' / 'strscan.a',
++        meson.project_build_root() / 'build' / 'ext' / 'zlib' / 'zlib.a',
++    ]
++else
++    ruby_ext_archives = [
++        meson.project_build_root() / 'build' / 'ext' / 'bigdecimal' / 'bigdecimal.a',
++        meson.project_build_root() / 'build' / 'ext' / 'cgi' / 'escape' / 'escape.a',
++        meson.project_build_root() / 'build' / 'ext' / 'continuation' / 'continuation.a',
++        meson.project_build_root() / 'build' / 'ext' / 'coverage' / 'coverage.a',
++        meson.project_build_root() / 'build' / 'ext' / 'date' / 'date_core.a',
++        meson.project_build_root() / 'build' / 'ext' / 'digest' / 'digest.a',
++        meson.project_build_root() / 'build' / 'ext' / 'digest' / 'bubblebabble' / 'bubblebabble.a',
++        meson.project_build_root() / 'build' / 'ext' / 'digest' / 'md5' / 'md5.a',
++        meson.project_build_root() / 'build' / 'ext' / 'digest' / 'rmd160' / 'rmd160.a',
++        meson.project_build_root() / 'build' / 'ext' / 'digest' / 'sha1' / 'sha1.a',
++        meson.project_build_root() / 'build' / 'ext' / 'digest' / 'sha2' / 'sha2.a',
++        meson.project_build_root() / 'build' / 'ext' / 'etc' / 'etc.a',
++        meson.project_build_root() / 'build' / 'ext' / 'fcntl' / 'fcntl.a',
++        meson.project_build_root() / 'build' / 'ext' / 'fiddle' / 'fiddle.a',
++        meson.project_build_root() / 'build' / 'ext' / 'io' / 'console' / 'console.a',
++        meson.project_build_root() / 'build' / 'ext' / 'io' / 'nonblock' / 'nonblock.a',
++        meson.project_build_root() / 'build' / 'ext' / 'io' / 'wait' / 'wait.a',
++        meson.project_build_root() / 'build' / 'ext' / 'json' / 'generator' / 'generator.a',
++        meson.project_build_root() / 'build' / 'ext' / 'json' / 'parser' / 'parser.a',
++        meson.project_build_root() / 'build' / 'ext' / 'monitor' / 'monitor.a',
++        meson.project_build_root() / 'build' / 'ext' / 'nkf' / 'nkf.a',
++        meson.project_build_root() / 'build' / 'ext' / 'objspace' / 'objspace.a',
++        meson.project_build_root() / 'build' / 'ext' / 'pathname' / 'pathname.a',
++        meson.project_build_root() / 'build' / 'ext' / 'psych' / 'psych.a',
++        meson.project_build_root() / 'build' / 'ext' / 'racc' / 'cparse' / 'cparse.a',
++        meson.project_build_root() / 'build' / 'ext' / 'rbconfig' / 'sizeof' / 'sizeof.a',
++        meson.project_build_root() / 'build' / 'ext' / 'ripper' / 'ripper.a',
++        meson.project_build_root() / 'build' / 'ext' / 'socket' / 'socket.a',
++        meson.project_build_root() / 'build' / 'ext' / 'stringio' / 'stringio.a',
++        meson.project_build_root() / 'build' / 'ext' / 'strscan' / 'strscan.a',
++        meson.project_build_root() / 'build' / 'ext' / 'zlib' / 'zlib.a',
++    ]
++    if host_machine.system() in ['windows', 'cygwin']
++        ruby_ext_archives += [
++            meson.project_build_root() / 'build' / 'ext' / 'win32' / 'resolv' / 'resolv.a',
++            meson.project_build_root() / 'build' / 'ext' / 'win32ole' / 'win32ole.a',
++        ]
++    else
++        ruby_ext_archives += [
++            meson.project_build_root() / 'build' / 'ext' / 'pty' / 'pty.a',
++            meson.project_build_root() / 'build' / 'ext' / 'syslog' / 'syslog.a',
++        ]
++    endif
++endif
++
+ ruby = declare_dependency(
+     dependencies: [
+         ruby_deps,
+@@ -58,11 +120,19 @@ ruby = declare_dependency(
+                 '--with-soname=ruby',
+                 '--disable-shared',
+                 '--disable-install-doc',
+-                '--with-out-ext=openssl,readline,dbm,gdbm',
++                host_machine.system() == 'horizon'
++                    ? '--with-ext=stringio,zlib,monitor,etc,date,psych,strscan,digest,pathname,continuation,fcntl,nkf'
++                    : '--with-out-ext=openssl,readline,dbm,gdbm',
+                 '--with-static-linked-ext',
+                 '--disable-rubygems',
+                 '--without-gmp',
+                 '--enable-mkmf-verbose',
++                host_machine.system() == 'horizon' ? [
++                    '--with-coroutine=arm64',
++                    '--disable-dln',
++                    '--disable-jit-support',
++                    '--disable-yjit',
++                ] : [],
+                 'CC=' + run_command(subproject('common').get_variable('quotetool'), meson.get_compiler('c').cmd_array(), check: true).stdout().strip(),
+                 'CXX=' + run_command(subproject('common').get_variable('quotetool'), meson.get_compiler('cpp').cmd_array(), check: true).stdout().strip(),
+                 'AR=' + run_command(subproject('common').get_variable('quotetool'), subproject('common').get_variable('ar'), check: true).stdout().strip(),
+@@ -101,7 +171,17 @@ ruby = declare_dependency(
+                 'rb_cv_gcc_sync_builtins': 'no',
+                 'rb_cv_prog_gnu_ld': subproject('common').get_variable('c_linker_is_gnu') ? 'yes' : 'no',
+                 'rb_cv_symbol_prefix': meson.get_compiler('c').symbols_have_underscore_prefix() ? '_' : 'NONE',
+-            },
++            } + (host_machine.system() == 'horizon' ? {
++                'ac_cv_func_fork': 'no',
++                'ac_cv_func_execv': 'no',
++                'ac_cv_func_pipe': 'no',
++                'ac_cv_func_getlogin': 'no',
++                'ac_cv_header_elf_h': 'no',
++                'ac_cv_header_elf_abi_h': 'no',
++                'ac_cv_func_backtrace': 'no',
++                'ac_cv_func_mmap': 'no',
++                'rb_cv_dev_t_convertible': 'INT',
++            } : {}),
+             depends: [
+                 # Force Meson to fully build all of our vendored dependencies that are required by Ruby before building Ruby itself
+                 executable(
+@@ -160,46 +240,7 @@ ruby = declare_dependency(
+             ]
+             : [],
+         meson.project_build_root() / 'build' / 'ext' / 'extinit.a',
+-        meson.project_build_root() / 'build' / 'ext' / 'bigdecimal' / 'bigdecimal.a',
+-        meson.project_build_root() / 'build' / 'ext' / 'cgi' / 'escape' / 'escape.a',
+-        meson.project_build_root() / 'build' / 'ext' / 'continuation' / 'continuation.a',
+-        meson.project_build_root() / 'build' / 'ext' / 'coverage' / 'coverage.a',
+-        meson.project_build_root() / 'build' / 'ext' / 'date' / 'date_core.a',
+-        meson.project_build_root() / 'build' / 'ext' / 'digest' / 'digest.a',
+-        meson.project_build_root() / 'build' / 'ext' / 'digest' / 'bubblebabble' / 'bubblebabble.a',
+-        meson.project_build_root() / 'build' / 'ext' / 'digest' / 'md5' / 'md5.a',
+-        meson.project_build_root() / 'build' / 'ext' / 'digest' / 'rmd160' / 'rmd160.a',
+-        meson.project_build_root() / 'build' / 'ext' / 'digest' / 'sha1' / 'sha1.a',
+-        meson.project_build_root() / 'build' / 'ext' / 'digest' / 'sha2' / 'sha2.a',
+-        meson.project_build_root() / 'build' / 'ext' / 'etc' / 'etc.a',
+-        meson.project_build_root() / 'build' / 'ext' / 'fcntl' / 'fcntl.a',
+-        meson.project_build_root() / 'build' / 'ext' / 'fiddle' / 'fiddle.a',
+-        meson.project_build_root() / 'build' / 'ext' / 'io' / 'console' / 'console.a',
+-        meson.project_build_root() / 'build' / 'ext' / 'io' / 'nonblock' / 'nonblock.a',
+-        meson.project_build_root() / 'build' / 'ext' / 'io' / 'wait' / 'wait.a',
+-        meson.project_build_root() / 'build' / 'ext' / 'json' / 'generator' / 'generator.a',
+-        meson.project_build_root() / 'build' / 'ext' / 'json' / 'parser' / 'parser.a',
+-        meson.project_build_root() / 'build' / 'ext' / 'monitor' / 'monitor.a',
+-        meson.project_build_root() / 'build' / 'ext' / 'nkf' / 'nkf.a',
+-        meson.project_build_root() / 'build' / 'ext' / 'objspace' / 'objspace.a',
+-        meson.project_build_root() / 'build' / 'ext' / 'pathname' / 'pathname.a',
+-        meson.project_build_root() / 'build' / 'ext' / 'psych' / 'psych.a',
+-        meson.project_build_root() / 'build' / 'ext' / 'racc' / 'cparse' / 'cparse.a',
+-        meson.project_build_root() / 'build' / 'ext' / 'rbconfig' / 'sizeof' / 'sizeof.a',
+-        meson.project_build_root() / 'build' / 'ext' / 'ripper' / 'ripper.a',
+-        meson.project_build_root() / 'build' / 'ext' / 'socket' / 'socket.a',
+-        meson.project_build_root() / 'build' / 'ext' / 'stringio' / 'stringio.a',
+-        meson.project_build_root() / 'build' / 'ext' / 'strscan' / 'strscan.a',
+-        meson.project_build_root() / 'build' / 'ext' / 'zlib' / 'zlib.a',
+-        host_machine.system() in ['windows', 'cygwin']
+-            ? [
+-                meson.project_build_root() / 'build' / 'ext' / 'win32' / 'resolv' / 'resolv.a',
+-                meson.project_build_root() / 'build' / 'ext' / 'win32ole' / 'win32ole.a',
+-            ]
+-            : [
+-                meson.project_build_root() / 'build' / 'ext' / 'pty' / 'pty.a',
+-                meson.project_build_root() / 'build' / 'ext' / 'syslog' / 'syslog.a',
+-            ],
++        ruby_ext_archives,
+         meson.project_build_root() / 'build' / 'enc' / 'encinit.a',
+         meson.project_build_root() / 'build' / 'enc' / 'libenc.a',
+         meson.project_build_root() / 'build' / 'enc' / 'libtrans.a',
+diff --git a/subprojects/ruby-3.1.wrap b/subprojects/ruby-3.1.wrap
+index 895a43b..faa8895 100644
+--- a/subprojects/ruby-3.1.wrap
++++ b/subprojects/ruby-3.1.wrap
+@@ -33,4 +33,5 @@ diff_files =
+     ruby-3.1-mkxp-z-patches.patch,
+     ruby-3.1-clock-gettime.patch,
+     ruby-3.1-mkxp-z-patches-windows-libs.patch,
++    ruby-3.1-horizon-switch.patch,
+     end-of-diff-files.patch

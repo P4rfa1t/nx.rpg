@@ -5,14 +5,30 @@ project(nxrpg_common LANGUAGES CXX)
 # - On Nintendo Switch (NINTENDO_SWITCH / __SWITCH__): links libnx for chainload & SD helpers.
 # - On Host (Linux / Windows / macOS): builds pure C++20 detector, config merger, and manifest tests.
 
-add_library(nxrpg_common INTERFACE)
+add_library(nxrpg_common STATIC
+  src/types.cpp
+  src/json.cpp
+  src/encoding.cpp
+  src/paths.cpp
+  src/engine_detector.cpp
+  src/launch_manifest.cpp
+  src/config_merger.cpp
+  src/chainload.cpp
+)
 
-target_include_directories(nxrpg_common INTERFACE
+target_include_directories(nxrpg_common PUBLIC
   "${CMAKE_CURRENT_SOURCE_DIR}/include"
 )
 
-target_compile_features(nxrpg_common INTERFACE cxx_std_20)
+target_compile_features(nxrpg_common PUBLIC cxx_std_20)
 
-# Phase 1 Note:
-# Once source files are added under common/src/*.cpp, switch INTERFACE -> STATIC
-# and conditionally link `nx` when `NINTENDO_SWITCH` is defined.
+if(MSVC)
+  target_compile_options(nxrpg_common PRIVATE /W4 /utf-8)
+else()
+  target_compile_options(nxrpg_common PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+
+if(NINTENDO_SWITCH)
+  target_compile_definitions(nxrpg_common PUBLIC NINTENDO_SWITCH)
+  target_link_libraries(nxrpg_common PUBLIC nx)
+endif()

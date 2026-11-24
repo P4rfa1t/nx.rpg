@@ -1,4 +1,4 @@
-.PHONY: help validate check-env bootstrap-cores apply-patches clean
+.PHONY: help validate test-host check-env bootstrap-cores apply-patches launcher core-easyrpg core-nxjs-mvz core-mkxp-z clean
 
 PYTHON ?= $(shell command -v python3 2>/dev/null || command -v python 2>/dev/null)
 
@@ -26,6 +26,11 @@ validate:
 	@bash -n scripts/bootstrap-cores.sh
 	@bash -n scripts/apply-patches.sh
 
+test-host:
+	cmake -S tests -B build/host-tests
+	cmake --build build/host-tests --parallel
+	ctest --test-dir build/host-tests --output-on-failure
+
 check-env:
 	@bash scripts/check-env.sh
 
@@ -34,6 +39,18 @@ bootstrap-cores:
 
 apply-patches:
 	@bash scripts/apply-patches.sh --check all
+
+launcher:
+	@bash scripts/build-launcher-switch.sh
+
+core-easyrpg:
+	@bash scripts/build-easyrpg-switch.sh
+
+core-nxjs-mvz:
+	@bash scripts/build-nxjs-mvz-switch.sh
+
+core-mkxp-z:
+	@bash scripts/build-mkxp-z-switch.sh
 
 clean:
 	rm -rf build dist out

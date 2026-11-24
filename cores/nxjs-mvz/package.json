@@ -12,13 +12,22 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "build:romfs": "esbuild shim/src/index.ts --bundle --platform=neutral --format=esm --outfile=romfs/main.js",
     "package:nro": "NXJS_FAT=1 nxjs-nro --fat"
   },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  },
   "devDependencies": {
-    "@nx.js/clkrst": "^0.0.14",
-    "@nx.js/constants": "^0.0.14",
-    "@nx.js/nro": "^0.0.70",
-    "@nx.js/runtime": "^0.0.70",
-    "typescript": "^5.6.3"
+    "@nx.js/clkrst": "^1.0.1",
+    "@nx.js/constants": "^0.4.1",
+    "@nx.js/nro": "1.0.0-beta.7",
+    "@nx.js/runtime": "1.0.0-beta.7",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.0"
   }
 }

@@ -1,0 +1,351 @@
+diff --git a/src/platform/switch/main.cpp b/src/platform/switch/main.cpp
+index 8ad2881..4c96fe0 100644
+--- a/src/platform/switch/main.cpp
++++ b/src/platform/switch/main.cpp
+@@ -17,14 +17,219 @@
+ 
+ #include <switch.h>
+ #include <unistd.h>
++#include <cctype>
++#include <cstdint>
++#include <cstdio>
++#include <filesystem>
++#include <fstream>
+ #include <string>
++#include <string_view>
+ #include <vector>
+ #include "player.h"
+ #include "output.h"
+ 
++namespace nxrpg_bridge {
++	uint64_t exit_combo_mask = HidNpadButton_L | HidNpadButton_R | HidNpadButton_Plus;
++	bool swap_confirm_cancel = false;
++	bool enable_touch = true;
++}
++
+ namespace {
+ 	int nxlinkSocket = -1;
+ 	bool is_nro = true;
++	std::string nxrpg_return_to;
++	std::string nxrpg_log_path;
++	std::string nxrpg_game_id;
++	bool nxrpg_clkrst_active = false;
++	ClkrstSession nxrpg_clkrst_session;
++
++	std::string MapEncodingForEasyRpg(std::string_view enc) {
++		if (enc == "utf-8") return "UTF-8";
++		if (enc == "shift_jis") return "932";
++		if (enc == "gbk") return "936";
++		if (enc == "big5") return "950";
++		if (enc == "cp949") return "949";
++		if (enc == "cp1252") return "1252";
++		return "";
++	}
++
++	uint64_t MapSwitchButton(std::string_view name) {
++		if (name == "A") return HidNpadButton_A;
++		if (name == "B") return HidNpadButton_B;
++		if (name == "X") return HidNpadButton_X;
++		if (name == "Y") return HidNpadButton_Y;
++		if (name == "L") return HidNpadButton_L;
++		if (name == "R") return HidNpadButton_R;
++		if (name == "ZL") return HidNpadButton_ZL;
++		if (name == "ZR") return HidNpadButton_ZR;
++		if (name == "PLUS") return HidNpadButton_Plus;
++		if (name == "MINUS") return HidNpadButton_Minus;
++		if (name == "LSTICK") return HidNpadButton_StickL;
++		if (name == "RSTICK") return HidNpadButton_StickR;
++		return 0;
++	}
++
++	size_t FindJsonKeyValuePos(std::string_view json, std::string_view key, size_t search_from = 0) {
++		std::string pat = "\"" + std::string(key) + "\"";
++		size_t pos = json.find(pat, search_from);
++		while (pos != std::string_view::npos) {
++			size_t p = pos + pat.size();
++			while (p < json.size() && std::isspace(static_cast<unsigned char>(json[p]))) ++p;
++			if (p < json.size() && json[p] == ':') {
++				++p;
++				while (p < json.size() && std::isspace(static_cast<unsigned char>(json[p]))) ++p;
++				return p;
++			}
++			pos = json.find(pat, pos + 1);
++		}
++		return std::string_view::npos;
++	}
++
++	std::string ExtractJsonString(std::string_view json, std::string_view key, size_t search_from = 0) {
++		size_t p = FindJsonKeyValuePos(json, key, search_from);
++		if (p == std::string_view::npos || p >= json.size() || json[p] != '"') return "";
++		++p;
++		std::string out;
++		while (p < json.size() && json[p] != '"') {
++			if (json[p] == '\\' && p + 1 < json.size()) {
++				++p;
++				switch (json[p]) {
++					case '"': out.push_back('"'); break;
++					case '\\': out.push_back('\\'); break;
++					case '/': out.push_back('/'); break;
++					case 'n': out.push_back('\n'); break;
++					case 'r': out.push_back('\r'); break;
++					case 't': out.push_back('\t'); break;
++					default: out.push_back(json[p]); break;
++				}
++			} else {
++				out.push_back(json[p]);
++			}
++			++p;
++		}
++		return out;
++	}
++
++	bool ExtractJsonBool(std::string_view json, std::string_view key, bool fallback, size_t search_from = 0) {
++		size_t p = FindJsonKeyValuePos(json, key, search_from);
++		if (p == std::string_view::npos) return fallback;
++		if (json.substr(p, 4) == "true") return true;
++		if (json.substr(p, 5) == "false") return false;
++		return fallback;
++	}
++
++	uint64_t ExtractExitComboMask(std::string_view json) {
++		size_t p = FindJsonKeyValuePos(json, "exitCombo");
++		if (p == std::string_view::npos || p >= json.size() || json[p] != '[') {
++			return HidNpadButton_L | HidNpadButton_R | HidNpadButton_Plus;
++		}
++		size_t end = json.find(']', p);
++		if (end == std::string_view::npos) {
++			return HidNpadButton_L | HidNpadButton_R | HidNpadButton_Plus;
++		}
++		uint64_t mask = 0;
++		std::string_view arr = json.substr(p, end - p + 1);
++		size_t cur = 0;
++		while (cur < arr.size()) {
++			size_t q1 = arr.find('"', cur);
++			if (q1 == std::string_view::npos) break;
++			size_t q2 = arr.find('"', q1 + 1);
++			if (q2 == std::string_view::npos) break;
++			mask |= MapSwitchButton(arr.substr(q1 + 1, q2 - q1 - 1));
++			cur = q2 + 1;
++		}
++		return mask != 0 ? mask : (HidNpadButton_L | HidNpadButton_R | HidNpadButton_Plus);
++	}
++
++	void ApplyCpuProfile(std::string_view profile) {
++		uint32_t hz = 0;
++		if (profile == "boost_1581") {
++			hz = 1581000000u;
++		} else if (profile == "boost_1785") {
++			hz = 1785000000u;
++		} else {
++			return;
++		}
++		if (R_SUCCEEDED(clkrstInitialize())) {
++			if (R_SUCCEEDED(clkrstOpenSession(&nxrpg_clkrst_session, PcvModuleId_CpuBus, 3))) {
++				clkrstSetClockRate(&nxrpg_clkrst_session, hz);
++				nxrpg_clkrst_active = true;
++			} else {
++				clkrstExit();
++			}
++		}
++	}
++
++	bool LoadNxRpgManifest(const std::string& manifest_path, std::vector<std::string>& args) {
++		std::ifstream ifs(manifest_path, std::ios::binary);
++		if (!ifs) return false;
++		std::string json((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
++		if (json.empty()) return false;
++
++		nxrpg_return_to = ExtractJsonString(json, "returnTo");
++		nxrpg_log_path = ExtractJsonString(json, "logPath");
++		nxrpg_game_id = ExtractJsonString(json, "id");
++		std::string content_root = ExtractJsonString(json, "contentRoot");
++		std::string save_path = ExtractJsonString(json, "savePath");
++		std::string rtp_path = ExtractJsonString(json, "rtpPath");
++		std::string fallback_font = ExtractJsonString(json, "fallbackFontPath");
++		std::string encoding = ExtractJsonString(json, "encoding");
++		std::string cpu_profile = ExtractJsonString(json, "cpuProfile");
++		std::string scaling_mode = ExtractJsonString(json, "scalingMode");
++		std::string soundfont_path = ExtractJsonString(json, "soundfontPath");
++
++		bool disable_rtp = ExtractJsonBool(json, "disableRtp", false);
++		bool vsync = ExtractJsonBool(json, "vsync", true);
++		bool show_fps = ExtractJsonBool(json, "showFps", false);
++		nxrpg_bridge::enable_touch = ExtractJsonBool(json, "enableTouch", true);
++		nxrpg_bridge::swap_confirm_cancel = ExtractJsonBool(json, "swapConfirmCancel", false);
++		nxrpg_bridge::exit_combo_mask = ExtractExitComboMask(json);
++
++		if (!content_root.empty()) {
++			args.push_back("--project-path");
++			args.push_back(content_root);
++		}
++		if (!save_path.empty()) {
++			std::error_code ec;
++			std::filesystem::create_directories(save_path, ec);
++			args.push_back("--save-path");
++			args.push_back(save_path);
++		}
++		std::string mapped_enc = MapEncodingForEasyRpg(encoding);
++		if (!mapped_enc.empty()) {
++			args.push_back("--encoding");
++			args.push_back(mapped_enc);
++		}
++		if (disable_rtp) {
++			args.push_back("--no-rtp");
++		} else if (!rtp_path.empty()) {
++			args.push_back("--rtp-path");
++			args.push_back(rtp_path);
++		}
++		if (!fallback_font.empty() && ::access(fallback_font.c_str(), F_OK) == 0) {
++			args.push_back("--font1");
++			args.push_back(fallback_font);
++		}
++		if (!soundfont_path.empty() && ::access(soundfont_path.c_str(), F_OK) == 0) {
++			args.push_back("--soundfont");
++			args.push_back(soundfont_path);
++		}
++		if (!nxrpg_log_path.empty()) {
++			std::error_code ec;
++			std::filesystem::path lp(nxrpg_log_path);
++			if (lp.has_parent_path()) {
++				std::filesystem::create_directories(lp.parent_path(), ec);
++			}
++			args.push_back("--log-file");
++			args.push_back(nxrpg_log_path);
++		}
++		args.push_back(vsync ? "--vsync" : "--no-vsync");
++		args.push_back(show_fps ? "--show-fps" : "--no-show-fps");
++		args.push_back(scaling_mode == "stretch" ? "--stretch" : "--no-stretch");
++
++		ApplyCpuProfile(cpu_profile);
++		return true;
++	}
+ }
+ 
+ static void LogCallback(LogLevel lvl, std::string const& msg, LogCallbackUserData /* userdata */) {
+@@ -41,9 +246,29 @@ static void LogCallback(LogLevel lvl, std::string const& msg, LogCallbackUserDat
+ 	if(nxlinkSocket >= 0) {
+ 		printf("%s: %s\n", prefix.c_str(), msg.c_str());
+ 	}
++
++	// Append structured fatal header for Launcher DiagnosticsTab when running under nx.rpg
++	if (lvl == LogLevel::Error && !nxrpg_log_path.empty()) {
++		FILE* fp = std::fopen(nxrpg_log_path.c_str(), "ab");
++		if (fp) {
++			std::fprintf(fp, "[nx.rpg][FATAL][core=easyrpg][game=%s][code=PLAYER_ERR] %s\n",
++				nxrpg_game_id.empty() ? "unknown" : nxrpg_game_id.c_str(),
++				msg.c_str());
++			std::fflush(fp);
++			fsync(fileno(fp));
++			std::fclose(fp);
++		}
++	}
+ }
+ 
+ void SwitchExit() {
++	if (nxrpg_clkrst_active) {
++		clkrstSetClockRate(&nxrpg_clkrst_session, 1020000000u);
++		clkrstCloseSession(&nxrpg_clkrst_session);
++		clkrstExit();
++		nxrpg_clkrst_active = false;
++	}
++
+ 	romfsExit();
+ 
+ 	// Close debug log
+@@ -53,13 +278,32 @@ void SwitchExit() {
+ 		nxlinkSocket = -1;
+ 	}
+ 
++	if (is_nro && !nxrpg_return_to.empty() && ::access(nxrpg_return_to.c_str(), F_OK) == 0) {
++		std::string ret_argv = nxrpg_return_to + " --from-core";
++		envSetNextLoad(nxrpg_return_to.c_str(), ret_argv.c_str());
++	}
++
+ 	// HOS will close us immediately afterwards, if requested by home menu.
+ 	// So no further cleanup possible.
+ 	appletUnlockExit();
+ }
+ 
+ int main(int argc, char* argv[]) {
+-	std::vector<std::string> args(argv, argv + argc);
++	std::vector<std::string> raw_args(argv, argv + argc);
++	std::vector<std::string> args;
++	std::string manifest_path;
++
++	for (size_t i = 0; i < raw_args.size(); ++i) {
++		if (raw_args[i] == "--nxrpg-manifest" && i + 1 < raw_args.size()) {
++			manifest_path = raw_args[++i];
++			continue;
++		}
++		if (raw_args[i].rfind("--nxrpg-manifest=", 0) == 0) {
++			manifest_path = raw_args[i].substr(17);
++			continue;
++		}
++		args.push_back(raw_args[i]);
++	}
+ 
+ 	appletLockExit();
+ 
+@@ -83,8 +327,10 @@ int main(int argc, char* argv[]) {
+ 
+ 	romfsInit();
+ 
+-	// Check if romfs has some files inside or not
+-	if(::access("romfs:/RPG_RT.lmt", F_OK) == 0) {
++	bool has_manifest = !manifest_path.empty() && LoadNxRpgManifest(manifest_path, args);
++
++	// Check if romfs has some files inside or not (skipped when launched by nx.rpg)
++	if(!has_manifest && ::access("romfs:/RPG_RT.lmt", F_OK) == 0) {
+ 		Output::Debug("Running packaged game from RomFS.");
+ 
+ 		args.push_back("--project-path");
+diff --git a/src/platform/switch/ui.cpp b/src/platform/switch/ui.cpp
+index 8d3404a..1e903cc 100644
+--- a/src/platform/switch/ui.cpp
++++ b/src/platform/switch/ui.cpp
+@@ -46,6 +46,12 @@ AudioInterface& NxUi::GetAudio() {
+ }
+ #endif
+ 
++namespace nxrpg_bridge {
++	extern uint64_t exit_combo_mask;
++	extern bool swap_confirm_cancel;
++	extern bool enable_touch;
++}
++
+ namespace {
+ 	EGLDisplay eglDisplay;
+ 	EGLContext eglContext;
+@@ -409,12 +415,21 @@ bool NxUi::ProcessEvents() {
+ 	}
+ 
+ 	u64 input = padGetButtons(&pad);
++	if (nxrpg_bridge::exit_combo_mask != 0 &&
++		(input & nxrpg_bridge::exit_combo_mask) == nxrpg_bridge::exit_combo_mask) {
++		Player::exit_flag = true;
++	}
+ 	keys[Input::Keys::JOY_DPAD_UP] = (input & HidNpadButton_Up);
+ 	keys[Input::Keys::JOY_DPAD_DOWN] = (input & HidNpadButton_Down);
+ 	keys[Input::Keys::JOY_DPAD_RIGHT] = (input & HidNpadButton_Right);
+ 	keys[Input::Keys::JOY_DPAD_LEFT] = (input & HidNpadButton_Left);
+-	keys[Input::Keys::JOY_A] = (input & HidNpadButton_A);
+-	keys[Input::Keys::JOY_B] = (input & HidNpadButton_B);
++	if (nxrpg_bridge::swap_confirm_cancel) {
++		keys[Input::Keys::JOY_A] = (input & HidNpadButton_B);
++		keys[Input::Keys::JOY_B] = (input & HidNpadButton_A);
++	} else {
++		keys[Input::Keys::JOY_A] = (input & HidNpadButton_A);
++		keys[Input::Keys::JOY_B] = (input & HidNpadButton_B);
++	}
+ 	keys[Input::Keys::JOY_X] = (input & HidNpadButton_X);
+ 	keys[Input::Keys::JOY_Y] = (input & HidNpadButton_Y);
+ 	keys[Input::Keys::JOY_LSTICK] = (input & HidNpadButton_StickL);
+@@ -439,7 +454,7 @@ bool NxUi::ProcessEvents() {
+ 	analog_input.trigger_right = (input & HidNpadButton_ZR) ? Input::AnalogInput::kMaxValue : 0.f;
+ 
+ 	// do not handle touch when not displaying buttons or no touch happened
+-	if (is_docked || vcfg.touch_ui.IsLocked() || !vcfg.touch_ui.Get() || !hidGetTouchScreenStates(&touch, 1))
++	if (!nxrpg_bridge::enable_touch || is_docked || vcfg.touch_ui.IsLocked() || !vcfg.touch_ui.Get() || !hidGetTouchScreenStates(&touch, 1))
+ 		return true;
+ 
+ 	for (int32_t i = 0; i < touch.count; ++i) {

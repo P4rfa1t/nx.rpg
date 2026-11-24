@@ -22,6 +22,9 @@ node_modules/
 .pnpm-store/
 .turbo/
 *.tsbuildinfo
+cores/nxjs-mvz/romfs/
+cores/nxjs-mvz/icon.jpg
+cores/nxjs-mvz/*.nro
 
 # Local runtime / test game dumps (never commit user games, RTPs, caches, or saves)
 sdcard/switch/nx.rpg/games/*

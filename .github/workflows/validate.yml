@@ -19,3 +19,14 @@ jobs:
           bash -n scripts/check-env.sh
           bash -n scripts/bootstrap-cores.sh
           bash -n scripts/apply-patches.sh
+          bash -n scripts/setup-docker-toolchain.sh
+          bash -n scripts/build-launcher-switch.sh
+          bash -n scripts/build-easyrpg-switch.sh
+          bash -n scripts/build-nxjs-mvz-switch.sh
+          bash -n scripts/build-mkxp-z-switch.sh
+
+      - name: Build and run host C++20 unit tests
+        run: |
+          cmake -S tests -B build/host-tests
+          cmake --build build/host-tests --parallel
+          ctest --test-dir build/host-tests --output-on-failure

@@ -2,7 +2,11 @@
   "app": {
     "title": "nx.rpg",
     "subtitle": "Nintendo Switch 多引擎 RPG Maker 运行器",
-    "applet_warning": "当前处于相册 Applet 低内存模式（~440 MB）：MV/MZ 与大型 XP/VX/VXAce 游戏可能因内存或 WASM JIT 受限而崩溃，请按住 R 键通过任意游戏进入全内存模式（Title Takeover）。"
+    "full_ram_badge": "Title Takeover: 3.2+ GB OK",
+    "applet_badge": "Applet 模式: ~440 MB 受限",
+    "desktop_badge": "桌面预览模式",
+    "applet_warning": "当前处于相册 Applet 低内存模式（~440 MB）：MV/MZ 与大型 XP/VX/VXAce 游戏可能因内存或 WASM JIT 受限而崩溃，请按住 R 键通过任意游戏进入全内存模式（Title Takeover）。",
+    "last_run_fatal": "上次运行核心异常退出：请前往“环境与日志自检”查看详情。"
   },
   "tabs": {
     "library": "全部游戏",
@@ -14,6 +18,34 @@
     "launch": "启动游戏",
     "per_game_settings": "单游戏设置",
     "rescan": "重新扫描目录",
-    "view_last_log": "查看上次运行日志"
+    "view_last_log": "查看上次运行日志",
+    "toggle_favorite": "切换收藏",
+    "filter_engine": "筛选引擎",
+    "continue_anyway": "仍要启动",
+    "cancel": "取消",
+    "save": "保存配置"
+  },
+  "settings": {
+    "language": "界面语言",
+    "default_encoding": "默认文本编码",
+    "cpu_profile": "CPU 频率档位",
+    "scaling_mode": "画面缩放模式",
+    "integer_scale": "整数倍缩放",
+    "vsync": "垂直同步 (VSync)",
+    "show_fps": "显示帧率 (FPS)",
+    "swap_confirm_cancel": "交换 A/B 确认取消键",
+    "enable_touch": "启用掌机触屏输入",
+    "warn_applet": "Applet 模式运行高内存核心时告警",
+    "sort_order": "游戏列表排序",
+    "exec_name": "工程入口名称 (execName)",
+    "disable_rtp": "禁用共享 RTP (仅 EasyRPG)",
+    "pretend_nwjs": "模拟 NW.js 运行环境 (MV/MZ)",
+    "win32_stubs": "启用 Win32API 兼容垫片 (mkxp-z)"
+  },
+  "precheck": {
+    "missing_core": "缺少对应核心文件，无法启动。",
+    "missing_game": "游戏目录不存在或已被移除。",
+    "missing_rtp_confirm": "检测到游戏可能需要共享 RTP，但对应 RTP 目录为空，是否继续启动？",
+    "applet_confirm_title": "Applet 低内存模式警告"
   }
 }

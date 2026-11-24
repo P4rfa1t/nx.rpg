@@ -1,0 +1,77 @@
+diff --git a/packages/runtime/src/$.ts b/packages/runtime/src/$.ts
+index 48a0fde..596b179 100644
+--- a/packages/runtime/src/$.ts
++++ b/packages/runtime/src/$.ts
+@@ -221,6 +221,7 @@ export interface Init {
+ 	appletGetAppletType(): number;
+ 	appletGetOperationMode(): number;
+ 	appletSetMediaPlaybackState(state: boolean): void;
++	envSetNextLoad(path: string, argv?: string): void;
+ 
+ 	// battery.c
+ 	batteryInit(): void;
+diff --git a/packages/runtime/src/switch/index.ts b/packages/runtime/src/switch/index.ts
+index 60c71d0..15ae79e 100644
+--- a/packages/runtime/src/switch/index.ts
++++ b/packages/runtime/src/switch/index.ts
+@@ -301,6 +301,16 @@ export function exit(): never {
+ 	$.exit();
+ }
+ 
++/**
++ * Schedules the next NRO binary to be loaded by hbmenu/loader when this process exits.
++ *
++ * @param path Path to the target `.nro` (e.g. `sdmc:/switch/nx.rpg/nx.rpg.nro`).
++ * @param argv Optional command-line string passed to the next NRO.
++ */
++export function setNextLoad(path: string, argv?: string): void {
++	$.envSetNextLoad(path, argv);
++}
++
+ /**
+  * Returns the current working directory as a URL string with a trailing slash.
+  *
+diff --git a/source/applet.cc b/source/applet.cc
+index aceec02..4d03c01 100644
+--- a/source/applet.cc
++++ b/source/applet.cc
+@@ -36,6 +36,33 @@ void nx_applet_set_media_playback_state(
+ 	}
+ }
+ 
++void nx_env_set_next_load(const FunctionCallbackInfo<Value> &info) {
++	Isolate *iso = info.GetIsolate();
++	if (info.Length() < 1 || !info[0]->IsString()) {
++		nx_throw(iso, "setNextLoad(path, argv?) requires a string path");
++		return;
++	}
++	if (!envHasNextLoad()) {
++		nx_throw(iso, "envHasNextLoad() is false in current environment");
++		return;
++	}
++	String::Utf8Value path_utf8(iso, info[0]);
++	const char *path = *path_utf8 ? *path_utf8 : "";
++	if (info.Length() >= 2 && info[1]->IsString()) {
++		String::Utf8Value argv_utf8(iso, info[1]);
++		const char *argv = *argv_utf8 ? *argv_utf8 : path;
++		Result rc = envSetNextLoad(path, argv);
++		if (R_FAILED(rc)) {
++			nx_throw_libnx_error(iso, rc, "envSetNextLoad");
++		}
++		return;
++	}
++	Result rc = envSetNextLoad(path, path);
++	if (R_FAILED(rc)) {
++		nx_throw_libnx_error(iso, rc, "envSetNextLoad");
++	}
++}
++
+ } // namespace
+ 
+ void nx_init_applet(Isolate *iso, Local<Object> init_obj) {
+@@ -45,4 +72,5 @@ void nx_init_applet(Isolate *iso, Local<Object> init_obj) {
+ 	            nx_applet_get_operation_mode);
+ 	NX_SET_FUNC(init_obj, "appletSetMediaPlaybackState",
+ 	            nx_applet_set_media_playback_state);
++	NX_SET_FUNC(init_obj, "envSetNextLoad", nx_env_set_next_load);
+ }

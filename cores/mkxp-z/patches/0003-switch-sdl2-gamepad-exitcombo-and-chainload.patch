@@ -1,0 +1,140 @@
+diff --git a/src/eventthread.cpp b/src/eventthread.cpp
+index 82d91ce..0172d65 100644
+--- a/src/eventthread.cpp
++++ b/src/eventthread.cpp
+@@ -423,6 +423,34 @@ void EventThread::process(RGSSThreadData &rtData)
+                 
+             case SDL_CONTROLLERBUTTONDOWN:
+                 controllerState.buttons[event.cbutton.button] = true;
++#ifdef __SWITCH__
++                if (rtData.config.nxrpg.active) {
++                    auto mapBtn = [](const std::string &name) -> int {
++                        if (name == "A") return SDL_CONTROLLER_BUTTON_B;
++                        if (name == "B") return SDL_CONTROLLER_BUTTON_A;
++                        if (name == "X") return SDL_CONTROLLER_BUTTON_Y;
++                        if (name == "Y") return SDL_CONTROLLER_BUTTON_X;
++                        if (name == "L") return SDL_CONTROLLER_BUTTON_LEFTSHOULDER;
++                        if (name == "R") return SDL_CONTROLLER_BUTTON_RIGHTSHOULDER;
++                        if (name == "PLUS") return SDL_CONTROLLER_BUTTON_START;
++                        if (name == "MINUS") return SDL_CONTROLLER_BUTTON_BACK;
++                        if (name == "LSTICK") return SDL_CONTROLLER_BUTTON_LEFTSTICK;
++                        if (name == "RSTICK") return SDL_CONTROLLER_BUTTON_RIGHTSTICK;
++                        return -1;
++                    };
++                    bool allPressed = !rtData.config.nxrpg.exitCombo.empty();
++                    for (const auto &bname : rtData.config.nxrpg.exitCombo) {
++                        int idx = mapBtn(bname);
++                        if (idx < 0 || !controllerState.buttons[idx]) {
++                            allPressed = false;
++                            break;
++                        }
++                    }
++                    if (allPressed) {
++                        terminate = true;
++                    }
++                }
++#endif
+                 break;
+                 
+             case SDL_CONTROLLERBUTTONUP:
+diff --git a/src/main.cpp b/src/main.cpp
+index af81d66..1e418a5 100644
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -50,6 +50,10 @@
+ 
+ #include "system/system.h"
+ 
++#ifdef __SWITCH__
++#include <switch.h>
++#endif
++
+ #if defined(__WIN32__)
+ #include "resource.h"
+ #include <processenv.h>
+@@ -74,7 +78,7 @@ __declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1;
+ #include "TouchBar.h"
+ #endif
+ 
+-#if !defined(__ANDROID__) && !defined(__APPLE__) && !defined(_WIN32)
++#if !defined(__ANDROID__) && !defined(__APPLE__) && !defined(_WIN32) && !defined(__SWITCH__)
+ #  define MKXPZ_CHECK_FOR_WAYLAND_SUPPORT
+ #endif
+ 
+@@ -241,6 +245,11 @@ static SDL_Window *initVideo(const Config &conf) {
+ }
+ 
+ int main(int argc, char *argv[]) {
++#ifdef __SWITCH__
++    romfsInit();
++    bool nxrpg_clkrst_active = false;
++    ClkrstSession nxrpg_clkrst_session;
++#endif
+     SDL_SetHint(SDL_HINT_VIDEO_MINIMIZE_ON_FOCUS_LOSS, "0");
+     SDL_SetHint(SDL_HINT_ACCELEROMETER_AS_JOYSTICK, "0");
+ 
+@@ -276,6 +285,21 @@ int main(int argc, char *argv[]) {
+     /* now we load the config */
+     Config conf;
+     conf.read(argc, argv);
++#ifdef __SWITCH__
++    if (conf.nxrpg.active) {
++        uint32_t hz = 0;
++        if (conf.nxrpg.cpuProfile == "boost_1581") hz = 1581000000u;
++        else if (conf.nxrpg.cpuProfile == "boost_1785") hz = 1785000000u;
++        if (hz != 0 && R_SUCCEEDED(clkrstInitialize())) {
++            if (R_SUCCEEDED(clkrstOpenSession(&nxrpg_clkrst_session, PcvModuleId_CpuBus, 3))) {
++                clkrstSetClockRate(&nxrpg_clkrst_session, hz);
++                nxrpg_clkrst_active = true;
++            } else {
++                clkrstExit();
++            }
++        }
++    }
++#endif
+     if (conf.windowTitle.empty())
+       conf.windowTitle = conf.game.title;
+ 
+@@ -737,6 +761,21 @@ int main(int argc, char *argv[]) {
+ 
+     if (!rtData.rgssErrorMsg.empty()) {
+       Debug() << rtData.rgssErrorMsg;
++#ifdef __SWITCH__
++      if (conf.nxrpg.active && !conf.nxrpg.logPath.empty()) {
++        std::string tmpLog = conf.nxrpg.logPath + ".tmp";
++        FILE *fp = fopen(tmpLog.c_str(), "wb");
++        if (fp) {
++          fprintf(fp, "[nx.rpg][FATAL][core=mkxp-z][game=%s][code=SCRIPT_ERR] %s\n",
++                  conf.nxrpg.gameId.empty() ? "unknown" : conf.nxrpg.gameId.c_str(),
++                  rtData.rgssErrorMsg.c_str());
++          fflush(fp);
++          fsync(fileno(fp));
++          fclose(fp);
++          rename(tmpLog.c_str(), conf.nxrpg.logPath.c_str());
++        }
++      }
++#endif
+       SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, conf.game.title.c_str(),
+                                rtData.rgssErrorMsg.c_str(), win);
+     }
+@@ -765,6 +804,20 @@ int main(int argc, char *argv[]) {
+     IMG_Quit();
+     SDL_Quit();
+ 
++#ifdef __SWITCH__
++    if (nxrpg_clkrst_active) {
++      clkrstSetClockRate(&nxrpg_clkrst_session, 1020000000u);
++      clkrstCloseSession(&nxrpg_clkrst_session);
++      clkrstExit();
++    }
++    romfsExit();
++    if (conf.nxrpg.active && !conf.nxrpg.returnTo.empty() && envHasNextLoad() &&
++        access(conf.nxrpg.returnTo.c_str(), F_OK) == 0) {
++      std::string retArgv = conf.nxrpg.returnTo + " --from-core";
++      envSetNextLoad(conf.nxrpg.returnTo.c_str(), retArgv.c_str());
++    }
++#endif
++
+     return 0;
+ }
+ 

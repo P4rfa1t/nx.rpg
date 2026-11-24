@@ -2,7 +2,11 @@
   "app": {
     "title": "nx.rpg",
     "subtitle": "Multi-Engine RPG Maker Runner for Nintendo Switch",
-    "applet_warning": "Running in Applet Mode (~440 MB RAM): MV/MZ and large XP/VX/VXAce games may fail due to RAM or WASM JIT limits. Hold R while launching any title for Application (Title Takeover) mode."
+    "full_ram_badge": "Title Takeover: 3.2+ GB OK",
+    "applet_badge": "Applet Mode: ~440 MB",
+    "desktop_badge": "Desktop Preview",
+    "applet_warning": "Running in Applet Mode (~440 MB RAM): MV/MZ and large XP/VX/VXAce games may fail due to RAM or WASM JIT limits. Hold R while launching any title for Application (Title Takeover) mode.",
+    "last_run_fatal": "The previous core session exited with a fatal error. Check Environment & Logs for details."
   },
   "tabs": {
     "library": "All Games",
@@ -14,6 +18,34 @@
     "launch": "Launch Game",
     "per_game_settings": "Game Settings",
     "rescan": "Rescan Library",
-    "view_last_log": "View Last Run Log"
+    "view_last_log": "View Last Run Log",
+    "toggle_favorite": "Toggle Favorite",
+    "filter_engine": "Filter Engine",
+    "continue_anyway": "Launch Anyway",
+    "cancel": "Cancel",
+    "save": "Save Settings"
+  },
+  "settings": {
+    "language": "UI Language",
+    "default_encoding": "Default Text Encoding",
+    "cpu_profile": "CPU Clock Profile",
+    "scaling_mode": "Aspect Scaling Mode",
+    "integer_scale": "Integer Scaling",
+    "vsync": "Vertical Sync (VSync)",
+    "show_fps": "Show FPS Overlay",
+    "swap_confirm_cancel": "Swap A/B Confirm & Cancel",
+    "enable_touch": "Enable Handheld Touch",
+    "warn_applet": "Warn in Applet Mode for High-RAM Cores",
+    "sort_order": "Library Sort Order",
+    "exec_name": "Executable Stem (execName)",
+    "disable_rtp": "Disable Shared RTP (EasyRPG)",
+    "pretend_nwjs": "Emulate NW.js Environment (MV/MZ)",
+    "win32_stubs": "Enable Win32API Stubs (mkxp-z)"
+  },
+  "precheck": {
+    "missing_core": "Required core NRO is missing on the SD card.",
+    "missing_game": "Game directory no longer exists.",
+    "missing_rtp_confirm": "This game may require shared RTP assets, but the RTP pool is empty. Launch anyway?",
+    "applet_confirm_title": "Applet Mode Memory Warning"
   }
 }

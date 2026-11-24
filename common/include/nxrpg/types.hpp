@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 #include <string_view>
 
 namespace nxrpg {
@@ -93,5 +94,11 @@ enum class MemoryExecutionMode : std::uint8_t {
 [[nodiscard]] std::string_view to_string(TextEncoding encoding) noexcept;
 [[nodiscard]] std::string_view to_string(CpuProfile profile) noexcept;
 [[nodiscard]] std::string_view to_string(ScalingMode mode) noexcept;
+
+[[nodiscard]] std::optional<EngineKind> parse_engine_kind(std::string_view text) noexcept;
+[[nodiscard]] std::optional<CoreKind> parse_core_kind(std::string_view text) noexcept;
+[[nodiscard]] std::optional<TextEncoding> parse_text_encoding(std::string_view text) noexcept;
+[[nodiscard]] std::optional<CpuProfile> parse_cpu_profile(std::string_view text) noexcept;
+[[nodiscard]] std::optional<ScalingMode> parse_scaling_mode(std::string_view text) noexcept;
 
 }  // namespace nxrpg

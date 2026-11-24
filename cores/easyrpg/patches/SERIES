@@ -1,7 +1,8 @@
 # Patch series for EasyRPG/Player @ a99ca834b8560f6a39a4df5de2d3972523ba2f30
 # Lines starting with '#' are comments; active .patch filenames are listed in apply order.
 
-# Planned Phase 1 patches:
-# 0001-switch-nxrpg-manifest-and-chainload.patch
-# 0002-switch-enable-custom-rtp-path.patch
+0001-switch-nxrpg-manifest-and-chainload.patch
+0002-switch-enable-custom-rtp-path.patch
+
+# Planned Phase 4 patches:
 # 0003-switch-swkbd-name-input.patch

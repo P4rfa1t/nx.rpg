@@ -7,8 +7,36 @@ if(NOT TARGET nxrpg_common)
   add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../common" "${CMAKE_CURRENT_BINARY_DIR}/common")
 endif()
 
-# Phase 1 Host Test Targets (runnable on Linux / Windows / macOS without devkitPro):
-#   - test_engine_detector : verifies 7-generation precedence, MV `www/` unwrap, and renamed `execName`
-#   - test_config_merger   : verifies default -> global.json -> games/<id>.json -> LaunchManifest precedence
-#   - test_case_path       : verifies case-insensitive path resolution and atomic `.tmp` writes
-#   - test_chainload_argv  : verifies `nxjs-mvz` omits positional argv[1] while `easyrpg`/`mkxp-z` pass `--nxrpg-manifest`
+if(NOT TARGET nxrpg_launcher_core)
+  add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../launcher" "${CMAKE_CURRENT_BINARY_DIR}/launcher")
+endif()
+
+foreach(test_name IN ITEMS
+  test_engine_detector
+  test_config_merger
+  test_case_path
+  test_chainload_argv
+)
+  add_executable(${test_name} "${test_name}.cpp")
+  target_link_libraries(${test_name} PRIVATE nxrpg_common)
+  target_compile_features(${test_name} PRIVATE cxx_std_20)
+  if(MSVC)
+    target_compile_options(${test_name} PRIVATE /W4 /utf-8)
+  else()
+    target_compile_options(${test_name} PRIVATE -Wall -Wextra -Wpedantic)
+  endif()
+  add_test(NAME ${test_name} COMMAND ${test_name})
+endforeach()
+
+add_executable(test_launcher_services test_launcher_services.cpp)
+target_link_libraries(test_launcher_services PRIVATE nxrpg_launcher_core nxrpg_common)
+target_compile_features(test_launcher_services PRIVATE cxx_std_20)
+target_compile_definitions(test_launcher_services PRIVATE
+  NXRPG_I18N_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../launcher/resources/i18n"
+)
+if(MSVC)
+  target_compile_options(test_launcher_services PRIVATE /W4 /utf-8)
+else()
+  target_compile_options(test_launcher_services PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+add_test(NAME test_launcher_services COMMAND test_launcher_services)
