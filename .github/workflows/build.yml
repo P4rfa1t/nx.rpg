@@ -68,7 +68,7 @@ jobs:
             echo '[built-in options]'
             echo "c_args = ['-O2', '-g0', '-march=armv8-a+crc+crypto', '-mtune=cortex-a57', '-mtp=soft', '-fPIC', '-D__SWITCH__']"
             echo "cpp_args = ['-O2', '-g0', '-march=armv8-a+crc+crypto', '-mtune=cortex-a57', '-mtp=soft', '-fPIC', '-D__SWITCH__']"
-            echo "c_link_args = ['-march=armv8-a+crc+crypto', '-L$PREFIX/lib', '-L$DEVKITPRO/libnx/lib']"
+            echo "c_link_args = ['-march=armv8-a+crc+crypto', '-specs=$DEVKITPRO/libnx/switch.specs', '-L$PREFIX/lib', '-L$DEVKITPRO/libnx/lib', '-lnx']"
             echo ''
             echo '[host_machine]'
             echo "system = 'horizon'"
@@ -109,7 +109,7 @@ jobs:
           tar xf pixman-0.46.4.tar.gz
           PKG_CONFIG_LIBDIR="$PREFIX/lib/pkgconfig" meson setup pixman-build pixman-0.46.4 \
             --cross-file meson-switch.txt \
-            --prefix="$PREFIX" --libdir=lib --buildtype=release \
+            --prefix="$PREFIX" --libdir=lib --buildtype=release -Ddefault_library=static \
             -Dtests=disabled -Ddemos=disabled -Dlibpng=disabled
           meson compile -C pixman-build -j"$NPROC" && meson install -C pixman-build
 
@@ -191,7 +191,7 @@ jobs:
             echo '[built-in options]'
             echo "c_args = ['-O2', '-g0', '-march=armv8-a+crc+crypto', '-mtune=cortex-a57', '-mtp=soft', '-fPIC', '-D__SWITCH__']"
             echo "cpp_args = ['-O2', '-g0', '-march=armv8-a+crc+crypto', '-mtune=cortex-a57', '-mtp=soft', '-fPIC', '-D__SWITCH__']"
-            echo "c_link_args = ['-march=armv8-a+crc+crypto', '-L$PREFIX/lib', '-L$DEVKITPRO/libnx/lib']"
+            echo "c_link_args = ['-march=armv8-a+crc+crypto', '-specs=$DEVKITPRO/libnx/switch.specs', '-L$PREFIX/lib', '-L$DEVKITPRO/libnx/lib', '-lnx']"
             echo ''
             echo '[host_machine]'
             echo "system = 'horizon'"
@@ -228,7 +228,7 @@ jobs:
           tar xf pixman-0.46.4.tar.gz
           PKG_CONFIG_LIBDIR="$PREFIX/lib/pkgconfig" meson setup pixman-build pixman-0.46.4 \
             --cross-file meson-switch.txt \
-            --prefix="$PREFIX" --libdir=lib --buildtype=release \
+            --prefix="$PREFIX" --libdir=lib --buildtype=release -Ddefault_library=static \
             -Dtests=disabled -Ddemos=disabled -Dlibpng=disabled
           meson compile -C pixman-build -j"$NPROC" && meson install -C pixman-build
 
