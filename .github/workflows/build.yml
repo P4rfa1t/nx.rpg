@@ -101,7 +101,8 @@ jobs:
           tar xf r62.tar.gz
           PKG_CONFIG_LIBDIR="$PREFIX/lib/pkgconfig" meson setup inih-build inih-r62 \
             --cross-file meson-switch.txt \
-            --prefix="$PREFIX" --libdir=lib --buildtype=release -Ddefault_library=static
+            --prefix="$PREFIX" --libdir=lib --buildtype=release \
+            -Ddefault_library=static -Dtests=false
           meson compile -C inih-build -j"$NPROC" && meson install -C inih-build
 
           # pixman (Meson-based upstream) for Borealis
@@ -221,7 +222,8 @@ jobs:
           tar xf r62.tar.gz
           PKG_CONFIG_LIBDIR="$PREFIX/lib/pkgconfig" meson setup inih-build inih-r62 \
             --cross-file meson-switch.txt \
-            --prefix="$PREFIX" --libdir=lib --buildtype=release -Ddefault_library=static
+            --prefix="$PREFIX" --libdir=lib --buildtype=release \
+            -Ddefault_library=static -Dtests=false
           meson compile -C inih-build -j"$NPROC" && meson install -C inih-build
 
           curl -fsSLO https://cairographics.org/releases/pixman-0.46.4.tar.gz
