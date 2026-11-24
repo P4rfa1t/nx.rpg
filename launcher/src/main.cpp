@@ -49,7 +49,7 @@ int main(int argc, char* argv[]) {
   nxrpg::launcher::LauncherApp app;
   int rc = app.run(ctx);
 
-  NXLOG_INFO("boot", std::string("nx.rpg launcher exiting with code ") + std::to_string(rc));
+  NXLOG_INFO("boot", std::string("nx.rpg launcher exiting with code ").append(std::to_string(rc)).c_str());
 #if defined(__SWITCH__) || defined(NINTENDO_SWITCH)
   romfsExit();
 #endif
