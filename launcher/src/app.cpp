@@ -18,7 +18,7 @@ namespace nxrpg::launcher {
 int LauncherApp::run(const BootContext& ctx) {
   NXLOG_INFO("app", "run() memory_mode=%d returned_from_core=%d sd_root=%s",
              static_cast<int>(ctx.memory_mode), ctx.returned_from_core ? 1 : 0,
-             ctx.sd_root.string().c_str());
+             ctx.sd_root.c_str());
 #ifdef NXRPG_HAS_BOREALIS
   if (!brls::Application::init()) {
     NXLOG_ERROR("app", "brls::Application::init failed");
