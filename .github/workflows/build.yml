@@ -23,6 +23,10 @@ on:
 permissions:
   contents: read
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
   launcher:
     name: nx.rpg.nro (Borealis frontend)
@@ -43,7 +47,7 @@ jobs:
           NPROC="$(nproc)"
 
           apt-get update -qq
-          apt-get install -y -qq --no-install-recommends curl unzip bison >/dev/null
+          apt-get install -y -qq --no-install-recommends curl unzip bison python3-pip python3-setuptools >/dev/null
 
           pip3 install --quiet --break-system-packages "meson>=1.5.0" ninja
 
@@ -165,7 +169,7 @@ jobs:
           NPROC="$(nproc)"
 
           apt-get update -qq
-          apt-get install -y -qq --no-install-recommends curl unzip bison >/dev/null
+          apt-get install -y -qq --no-install-recommends curl unzip bison python3-pip python3-setuptools >/dev/null
 
           pip3 install --quiet --break-system-packages "meson>=1.5.0" ninja
 
@@ -275,7 +279,7 @@ jobs:
     # switch-v8 + Skia toolchain lives in TooTallNate's pacman-packages image;
     # Node 22 + pnpm are layered on top at step 1.
     container:
-      image: ghcr.io/tootallnate/pacman-packages@sha256:92880d7a9d5c1ac4e83c26b2b07a3c0c9dfbf4a4
+      image: ghcr.io/tootallnate/pacman-packages@sha256:92880d77878639768fe3696800104d68de1dfec65802bf7915689dd7bd718e53
       options: --user root
     steps:
       - uses: actions/checkout@v6
@@ -308,7 +312,7 @@ jobs:
       - name: Install Meson + host Ruby + bison
         run: |
           apt-get update -qq
-          apt-get install -y -qq --no-install-recommends ruby-full bison curl >/dev/null
+          apt-get install -y -qq --no-install-recommends ruby-full bison curl python3-pip python3-setuptools >/dev/null
           pip3 install --quiet --break-system-packages "meson>=1.5.0" ninja
 
       - name: Bootstrap & patch mkxp-z
