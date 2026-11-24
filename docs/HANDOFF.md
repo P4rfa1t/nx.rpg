@@ -12,7 +12,7 @@
   - `rm2k` (2000)、`rm2k3` (2003) → **EasyRPG Player** (`cores/easyrpg.nro`)
   - `rmmv` (MV)、`rmmz` (MZ) → **nx.js + MV/MZ Shim** (`cores/nxjs-mvz.nro`)
   - `rmxp` (XP / RGSS1)、`rmvx` (VX / RGSS2)、`rmvxa` (VX Ace / RGSS3) → **mkxp-z** (`cores/mkxp-z.nro`)
-- **当前进度**：**Phase 0 已 100% 完成**（包含全套架构/协议/输入/文件系统/构建合规文档、5 份权威 JSON Schema、上游 40 位 Commit SHA 锁文件、C++20/Borealis/TS/Ruby 子模块接口与构建骨架、零依赖契约校验脚本与 GitHub Actions 校验工作流）。**尚未编写 Phase 1 业务实现代码，尚未产出 `.nro` 二进制**。
+- **当前进度**：**Phase 1–4 代码全部完成**（`common/` 公共库 + 7 项宿主机 ctest、Borealis 前端 MVP 含封面缓存/收藏/游玩时长/诊断中心、三大核心补丁队列 easyrpg×3 / nxjs-mvz×1 / mkxp-z×4 全部打通，四枚 NRO 已在 Docker `nxrpg-devkita64` 交叉编译产出）。Phase 5 部分：`.github/workflows/build.yml` 四目标并行构建已上线。**剩余：实机（Switch 真机/模拟器）闭环验收、插件兼容性迭代、发布打包流水线**。
 - **当前宿主机环境情况**（`scripts/check-env.sh` 实测）：Windows 11 + Git Bash；已安装 `git`、`cmake`、`ninja`、`node`、`python`；尚未安装 `devkitPro`（`DEVKITPRO`、`aarch64-none-elf-gcc`、`elf2nro`）、`meson`、`pnpm`。
 
 ---

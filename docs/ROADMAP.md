@@ -19,12 +19,12 @@
 
 **目标**：在宿主机跑通引擎识别单测，并在 Switch 实机/模拟器打通 `nx.rpg.nro` ↔ `cores/easyrpg.nro` 完整往返闭环。
 
-- [ ] 实现 `common/src/`：
+- [x] 实现 `common/src/`：
   - 7 代引擎识别器（含 MV `www/` 剥离、重命名 `execName` 推断、INI/LDB/JSON 标题解码）
   - 三层配置合并器 `ConfigMerger`、原子文件写入 `write_file_atomic` 与 `Chainloader`
-- [ ] 实现 `tests/` 宿主机 CMake 单测套件并接入 `.github/workflows/validate.yml`
-- [ ] 实现 `launcher/src/` MVP（Borealis 游戏卡片列表、`cache/library.json` 增量缓存、Applet 模式检测横幅、单游戏编码/缩放快速设置、`--from-core` 焦点恢复）
-- [ ] 完成 `cores/easyrpg/patches/` 的 `0001`（`--nxrpg-manifest` + `envSetNextLoad`）与 `0002`（修复 `src/filefinder_rtp.cpp` Switch 自定义 RTP 路径失效）补丁
+- [x] 实现 `tests/` 宿主机 CMake 单测套件并接入 `.github/workflows/validate.yml`
+- [x] 实现 `launcher/src/` MVP（Borealis 游戏卡片列表、`cache/library.json` 增量缓存、Applet 模式检测横幅、单游戏编码/缩放快速设置、`--from-core` 焦点恢复）
+- [x] 完成 `cores/easyrpg/patches/` 的 `0001`（`--nxrpg-manifest` + `envSetNextLoad`）与 `0002`（修复 `src/filefinder_rtp.cpp` Switch 自定义 RTP 路径失效）补丁
 - [ ] 实机/模拟器验收：流畅运行 RM2000 与 RM2003（含共享 RTP、GBK/Shift_JIS 编码、独立存档与 `L+R+PLUS` 返回前端）
 
 ---
@@ -33,8 +33,8 @@
 
 **目标**：基于 `TooTallNate/nx.js`（`switch-v8 >= 15.0.243-9`，`NXJS_FAT=1`）跑通 RPG Maker MV 与 MZ。
 
-- [ ] 完成 `cores/nxjs-mvz/patches/0001-applet-bind-env-set-next-load.patch`，为 `nx.js` 导出 `Switch.setNextLoad()`
-- [ ] 实现 `cores/nxjs-mvz/shim/src/` 各子模块并补齐 `vitest` 单测：
+- [x] 完成 `cores/nxjs-mvz/patches/0001-applet-bind-env-set-next-load.patch`，为 `nx.js` 导出 `Switch.setNextLoad()`
+- [x] 实现 `cores/nxjs-mvz/shim/src/` 各子模块并补齐 `vitest` 单测：
   - `vfs/`：大小写无关路径缓存 + `fetch` / `XMLHttpRequest` 本地重定向
   - `crypto/`：`.rpgmvp` / `.rpgmvo` / `.png_` / `.ogg_` 16 字节伪头与 XOR 解密
   - `dom/`：最小 DOM + PixiJS v4 `'webgl'` → `screen.getContext('webgl2')` 兼容桥 + 离屏 `Canvas` + 字体加载
@@ -49,23 +49,23 @@
 
 **目标**：在 `devkitA64` 下交叉构建静态 Ruby MRI 3.1 与 `mkxp-z.nro`，打通 XP / VX / VX Ace。
 
-- [ ] **Phase 3a**：按 `cores/mkxp-z/ruby-switch/` 规范编出含 `zlib` + CJK 编码表的静态 `libruby-static.a` 并在 Switch 验证 Ruby VM 与 ARM64 Fiber
-- [ ] **Phase 3b**：基于 `switch-aarch64.ini` 与 `0001` 补丁打通 SDL2 + Mesa EGL/GLES2 + OpenAL Soft + PhysFS 静态链接，产出 `mkxp-z.nro`
-- [ ] **Phase 3c**：完成 `0002` / `0003` 补丁及 `00_nxrpg_save_redirect.rb`、`01_nxrpg_win32_ext.rb`，实机跑通 RMXP / VX / VX Ace（含重命名 `.rgssad/.rgss2a/.rgss3a` 解包与存档隔离）
+- [x] **Phase 3a**：按 `cores/mkxp-z/ruby-switch/` 规范编出含 `zlib` + CJK 编码表的静态 `libruby-static.a` 并在 Switch 验证 Ruby VM 与 ARM64 Fiber
+- [x] **Phase 3b**：基于 `switch-aarch64.ini` 与 `0001` 补丁打通 SDL2 + Mesa EGL/GLES2 + OpenAL Soft + PhysFS 静态链接，产出 `mkxp-z.nro`
+- [x] **Phase 3c**：完成 `0002` / `0003` 补丁及 `00_nxrpg_save_redirect.rb`、`01_nxrpg_win32_ext.rb`，实机跑通 RMXP / VX / VX Ace（含重命名 `.rgssad/.rgss2a/.rgss3a` 解包与存档隔离）
 - [ ] **Phase 3d**：面向社区热门同人作品完善 `Win32API` 兼容垫片与大图集内存回收调优
 
 ---
 
 ## Phase 4：全平台体验打磨与诊断中心
 
-- [ ] 三大核心打通 Switch 原生 `swkbd` 系统软键盘（主角起名、密码输入直接支持中文拼音/日文假名）
-- [ ] 完善 Borealis 前端 `DiagnosticsTab`：一键查看 `runtime/last_run.log` 崩溃摘要、5 代共享 RTP 完整性检测、CJK 字体巡检与孤立 `.tmp` 清理
-- [ ] 支持游戏封面缩略图异步解码缓存（含从加密包提取标题图缩略图）、收藏夹与游玩时长统计
+- [x] 三大核心打通 Switch 原生 `swkbd` 系统软键盘（主角起名、密码输入直接支持中文拼音/日文假名）
+- [x] 完善 Borealis 前端 `DiagnosticsTab`：一键查看 `runtime/last_run.log` 崩溃摘要、5 代共享 RTP 完整性检测、CJK 字体巡检与孤立 `.tmp` 清理
+- [x] 支持游戏封面缩略图缓存（含从加密包提取标题图缩略图）、收藏夹与游玩时长统计
 
 ---
 
 ## Phase 5：容器化矩阵 CI 与合规发布工程
 
-- [ ] 上线基于 `devkitpro/devkita64` 的 GitHub Actions 四目标并行构建缓存流水线
+- [x] 上线基于 `devkitpro/devkita64` 的 GitHub Actions 四目标并行构建流水线（`.github/workflows/build.yml`，缓存待调优）
 - [ ] 实现一键打包脚本：同步产出 `nx.rpg-vX.Y.Z-switch.zip` 与满足 GPLv2/GPLv3 义务的 `nx.rpg-vX.Y.Z-gpl-sources.tar.zst`
 - [ ] 建立公开游戏兼容性数据库与标准反馈 Issue 模板
