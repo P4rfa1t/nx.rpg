@@ -18,7 +18,7 @@
     "launch": "Launch Game",
     "per_game_settings": "Game Settings",
     "rescan": "Rescan Library",
-    "view_last_log": "View Last Run Log",
+    "view_last_log": "View Game Run Logs",
     "toggle_favorite": "Toggle Favorite",
     "filter_engine": "Filter Engine",
     "cleanup_tmp": "Clean .tmp & Refresh",

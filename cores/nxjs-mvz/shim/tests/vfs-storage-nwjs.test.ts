@@ -85,7 +85,7 @@ function makeManifest(): LaunchManifest {
     schemaVersion: 1,
     sessionId: 'test-session',
     returnTo: 'sdmc:/switch/nx.rpg/nx.rpg.nro',
-    logPath: 'sdmc:/switch/nx.rpg/runtime/last_run.log',
+    logPath: 'sdmc:/switch/nx.rpg/logs/games/mv-demo-123456.log',
     game: {
       id: 'mv-demo-123456',
       title: 'MV Demo',

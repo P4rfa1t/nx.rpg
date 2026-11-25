@@ -89,19 +89,20 @@ void DiagnosticsTab::refresh() {
     list_box_->addView(lbl);
   }
 
-  // ---- Last run log tail ----
-  auto log_sum = EnvironmentDoctor::inspect_last_run_log(
-      std::filesystem::path(ctx_.sd_root) / "runtime/last_run.log", 20);
-  if (log_sum.exists) {
-    auto* log_header = new brls::Header();
-    log_header->setTitle(i18n_->translate("actions.view_last_log", "Last Run Log"));
-    if (log_sum.has_fatal) {
-      log_header->setSubtitle("FATAL [" + log_sum.fatal_core + "/" + log_sum.fatal_code + "] " +
-                              log_sum.fatal_message);
+  // ---- Per-game run logs (logs/games/<game_id>.log, newest first) ----
+  auto game_logs = EnvironmentDoctor::list_game_logs(
+      std::filesystem::path(ctx_.sd_root) / "logs/games");
+  for (const auto& [game_id, log_path] : game_logs) {
+    auto game_log_sum = EnvironmentDoctor::inspect_last_run_log(log_path, 20);
+    auto* game_header = new brls::Header();
+    game_header->setTitle(game_id);
+    if (game_log_sum.has_fatal) {
+      game_header->setSubtitle("FATAL [" + game_log_sum.fatal_core + "/" + game_log_sum.fatal_code + "] " +
+                               game_log_sum.fatal_message);
     }
-    list_box_->addView(log_header);
+    list_box_->addView(game_header);
 
-    for (const auto& line : log_sum.tail_lines) {
+    for (const auto& line : game_log_sum.tail_lines) {
       auto* lbl = new brls::Label();
       lbl->setText("  " + line);
       list_box_->addView(lbl);
@@ -110,7 +111,7 @@ void DiagnosticsTab::refresh() {
 
   // ---- Launcher log tail ----
   auto launcher_log_sum = EnvironmentDoctor::inspect_last_run_log(
-      std::filesystem::path(ctx_.sd_root) / "runtime/launcher.log", 30);
+      std::filesystem::path(ctx_.sd_root) / "logs/launcher.log", 30);
   if (launcher_log_sum.exists) {
     auto* launcher_log_header = new brls::Header();
     launcher_log_header->setTitle(i18n_->translate("diagnostics.launcher_log", "Launcher Log"));

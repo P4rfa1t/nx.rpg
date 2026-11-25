@@ -44,7 +44,7 @@
   "schemaVersion": 1,
   "sessionId": "20261124-120000-f4a9c2",
   "returnTo": "sdmc:/switch/nx.rpg/nx.rpg.nro",
-  "logPath": "sdmc:/switch/nx.rpg/runtime/last_run.log",
+  "logPath": "sdmc:/switch/nx.rpg/logs/games/sample-mv-7c8d1a.log",
   "game": {
     "id": "sample-mv-7c8d1a",
     "title": "Sample RPG MV",
@@ -112,9 +112,9 @@
 
 ### 完整运行日志（Per-Core Run Logs）
 
-`logPath`（默认 `runtime/last_run.log`）同时承载各核心的完整运行日志，均为**追加写**：
+`logPath` 默认指向 **`logs/games/<game_id>.log`**（每游戏一个文件，互不混写），同时承载该游戏的完整运行日志，均为**追加写**：
 
 - **EasyRPG**：上游 `--log-file` 全量 Player 日志（时间戳 + Error/Warning/Info/Debug 各级行）。
 - **mkxp-z**：补丁将 `stderr`（含 `Debug()`、RGSS 脚本错误、SDL 消息）`freopen` 镜像至 `logPath`，并在启动时写入 `---- mkxp-z session start (game=<id>) ----` 横幅。
 - **nxjs-mvz**：shim 在 session start / VFS 索引完成 / 干净退出 / FATAL 时追加带 ISO 时间戳的行。
-- **Launcher**：自身日志独立写在 `runtime/launcher.log`，Diagnostics 页同时显示两者的尾部。
+- **Launcher**：自身日志独立写在 `logs/launcher.log`，Diagnostics 页按游戏分组显示 `logs/games/*.log` 尾部与启动器日志尾部。

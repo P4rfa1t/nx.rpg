@@ -37,7 +37,7 @@ Switch Homebrew 环境（Atmosphère `hbmenu` / `nro` loader）提供 `libnx` �
 │  1. 读取 runtime/launch.json，按需应用 clkrst CPU 频率 │
 │  2. 只读访问游戏目录，挂载共享 RTP、字体与隔离存档目录 │
 │  3. 运行游戏主循环；监听游戏内退出或 L+R+PLUS 组合键   │
-│  4. 原子冲刷存档与 runtime/last_run.log，恢复默认频率  │
+│  4. 原子冲刷存档与 logs/games/<game_id>.log，恢复默认频率  │
 └──────────────────────────┬─────────────────────────────┘
                            │ envSetNextLoad(".../nx.rpg.nro", "... --from-core")
                            ▼
@@ -102,7 +102,10 @@ sdmc:/switch/nx.rpg/
 ├── config/
 │   ├── global.json             # 全局配置（见 global-config.schema.json）
 │   └── games/                  # 单游戏覆写配置（<game_id>.json，见 game-config.schema.json）
+├── logs/
+│   ├── launcher.log            # 前端自身日志（会话横幅 + 调度/诊断行）
+│   └── games/                  # 每游戏独立运行日志 <game_id>.log（三个核心共同追加）
 └── runtime/
     ├── launch.json             # Launcher -> Core 瞬时启动清单（见 launch-manifest.schema.json）
-    └── last_run.log            # 最近一次核心运行与崩溃诊断日志
+    └── active_session.json     # 游玩中会话（退出后转为游玩时长记录）
 ```

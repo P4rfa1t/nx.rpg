@@ -5,6 +5,7 @@
 #include "launcher/services/i18n_service.hpp"
 #include "launcher/services/library_service.hpp"
 #include "nxrpg/launch_manifest.hpp"
+#include "nxrpg/paths.hpp"
 #include "test_common.hpp"
 
 #include <filesystem>
@@ -146,6 +147,10 @@ int main() {
       NXRPG_CHECK(manifest->game.id == mv_game.id);
       NXRPG_CHECK(manifest->game.core == CoreKind::NxjsMvz);
       NXRPG_CHECK(manifest->runtime.cpu_profile == CpuProfile::Boost1581);
+      // Per-game run log contract: logPath points into logs/games/<id>.log
+      NXRPG_CHECK(manifest->log_path == (sd / "logs/games" / (mv_game.id + ".log")).generic_string() ||
+                  manifest->log_path ==
+                      paths::game_log_path(mv_game.id));
     }
     NXRPG_CHECK(std::filesystem::is_regular_file(sd / "runtime/active_session.json"));
 
@@ -178,8 +183,9 @@ int main() {
   // 4. EnvironmentDoctor checks, .tmp cleanup & [nx.rpg][FATAL] parser
   {
     nxrpg::test::write_bytes(sd / "runtime/stale.json.tmp", "partial");
+    // Per-game run log: logs/games/<id>.log (manifest logPath target)
     nxrpg::test::write_bytes(
-        sd / "runtime/last_run.log",
+        sd / "logs/games/touhou-xp-91b2.log",
         "info line 1\n[nx.rpg][FATAL][core=mkxp-z][game=touhou-xp-91b2][code=SCRIPT_ERR] NoMethodError: foo\n");
 
     auto items = EnvironmentDoctor::run_all_checks(MemoryExecutionMode::AppletRestrictedRam, sd);
@@ -192,19 +198,27 @@ int main() {
       if (it.component == "Memory Mode" && it.severity == DiagnosticItem::Severity::Warning) {
         saw_applet_warn = true;
       }
-      if (it.component == "Last Run Log" && it.severity == DiagnosticItem::Severity::Error) {
+      if (it.component == "Game Log: touhou-xp-91b2" && it.severity == DiagnosticItem::Severity::Error) {
         saw_fatal_err = true;
       }
     }
     NXRPG_CHECK(saw_applet_warn);
     NXRPG_CHECK(saw_fatal_err);
 
-    auto log_sum = EnvironmentDoctor::inspect_last_run_log(sd / "runtime/last_run.log");
+    auto log_sum = EnvironmentDoctor::inspect_last_run_log(sd / "logs/games/touhou-xp-91b2.log");
     NXRPG_CHECK(log_sum.exists && log_sum.has_fatal);
     NXRPG_CHECK(log_sum.fatal_core == "mkxp-z");
     NXRPG_CHECK(log_sum.fatal_game == "touhou-xp-91b2");
     NXRPG_CHECK(log_sum.fatal_code == "SCRIPT_ERR");
     NXRPG_CHECK(log_sum.fatal_message == "NoMethodError: foo");
+
+    // list_game_logs / most_recent_game_log on the per-game logs dir
+    auto logs = EnvironmentDoctor::list_game_logs(sd / "logs/games");
+    NXRPG_CHECK(logs.size() == 1);
+    NXRPG_CHECK(!logs.empty() && logs[0].first == "touhou-xp-91b2");
+    auto recent = EnvironmentDoctor::most_recent_game_log(sd / "logs/games");
+    NXRPG_CHECK(recent.has_value());
+    NXRPG_CHECK(!recent || recent->filename() == "touhou-xp-91b2.log");
   }
 
   // 5. I18nService & BootContext

@@ -44,6 +44,10 @@ sdcard/switch/nx.rpg/cache/covers/*
 !sdcard/switch/nx.rpg/cache/covers/.gitkeep
 sdcard/switch/nx.rpg/runtime/*
 !sdcard/switch/nx.rpg/runtime/.gitkeep
+sdcard/switch/nx.rpg/logs/*
+!sdcard/switch/nx.rpg/logs/.gitkeep
+sdcard/switch/nx.rpg/logs/games/*
+!sdcard/switch/nx.rpg/logs/games/.gitkeep
 
 # Python cache
 __pycache__/

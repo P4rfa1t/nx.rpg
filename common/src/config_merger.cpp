@@ -38,7 +38,6 @@ LaunchManifest ConfigMerger::build_launch_manifest(
   m.schema_version = 1;
   m.session_id = session_id.empty() ? "session-0" : std::string(session_id);
   m.return_to = std::string(paths::kLauncherNro);
-  m.log_path = std::string(paths::kLastRunLog);
 
   m.game.id = game.id.empty() ? "unknown-game" : game.id;
   m.game.title = game.title.empty() ? m.game.id : game.title;
@@ -51,6 +50,10 @@ LaunchManifest ConfigMerger::build_launch_manifest(
 
   m.assets.rtp_path = paths::default_rtp_path(m.game.engine);
   m.assets.fallback_font_path = std::string(paths::kFontsDir) + "/NotoSansCJK-Regular.ttc";
+
+  // Per-game core run log: logs/games/<game_id>.log (all cores append here;
+  // the launcher Diagnostics tab shows the tails grouped per game).
+  m.log_path = paths::game_log_path(m.game.id);
 
   if (m.game.engine == EngineKind::Rmmv || m.game.engine == EngineKind::Rmmz) {
     m.runtime.encoding = TextEncoding::Utf8;

@@ -12,7 +12,7 @@
 - **存档完全隔离** —— 所有代际的存档统一重定向到 `saves/<game_id>/`（RGSS `Save*.rxdata` / MV/MZ `localStorage` + `save/` 均含 Copy-on-Write 旧档回退），游戏目录运行期严格只读。
 - **exFAT/FAT32 防损** —— 全部配置、缓存、清单与存档走 `<file>.tmp` → fflush → fsync → rename 原子写入；启动时自动清理崩溃残留的 `.tmp`。
 - **按需 CPU 调频** —— 默认"跟随系统"（尊重系统 powerd 与自装超频 KIP），也可手动钳制 1020/1581/1785 MHz。
-- **完整可观测性** —— 启动器日志 `runtime/launcher.log` + 各核心运行日志 `runtime/last_run.log`（EasyRPG 全量 / mkxp-z stderr 镜像 / nxjs 带时间戳事件行），诊断页直接查看尾部，崩溃时前端自动弹窗定位。
+- **完整可观测性** —— 启动器日志 `logs/launcher.log` + **每游戏独立运行日志** `logs/games/<game_id>.log`（EasyRPG 全量 / mkxp-z stderr 镜像 / nxjs 带时间戳事件行），诊断页按游戏分组查看尾部，崩溃时前端自动弹窗定位。
 - **中文化输入** —— 全部核心接入系统软键盘（swkbd），角色起名输入 CJK 无压力；界面内置 zh-CN / en-US 等五语言。
 
 ## 🎮 支持矩阵
@@ -47,7 +47,8 @@
        ├── config/global.json      # 可选：全局配置（省略则用默认值）
        ├── cache/                  # 自动生成：库缓存 + 封面缩略图
        ├── saves/                  # 自动生成：按游戏隔离的存档
-       └── runtime/                # 自动生成：launch.json + 日志
+       ├── logs/                   # 自动生成：launcher.log + games/<game_id>.log 每游戏运行日志
+       └── runtime/                # 自动生成：launch.json 启动清单
    ```
 
 3. **务必用全内存模式启动**：从相册 hbmenu 启动会进入 Applet 模式（~440 MB，V8 JIT 与大型 RGSS 堆受限）；按住 **R** 键启动任意已安装游戏（Title Takeover）即获得 ~3.2 GB 全内存。前端标题栏会显示当前模式。

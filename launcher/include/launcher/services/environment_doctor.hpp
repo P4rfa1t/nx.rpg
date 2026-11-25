@@ -2,7 +2,9 @@
 
 #include <cstddef>
 #include <filesystem>
+#include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "nxrpg/paths.hpp"
@@ -45,10 +47,20 @@ class EnvironmentDoctor {
   /// Removes orphaned `*.tmp` files left by crashed writes in config/cache/runtime/saves.
   static std::size_t cleanup_orphaned_tmp_files(const std::filesystem::path& sd_root);
 
-  /// Parses `runtime/last_run.log` for `[nx.rpg][FATAL]` diagnostics and last N lines.
+  /// Parses a core run log for `[nx.rpg][FATAL]` diagnostics and last N lines.
   [[nodiscard]] static LastRunLogSummary inspect_last_run_log(
       const std::filesystem::path& log_path,
       std::size_t max_tail_lines = 40);
+
+  /// Returns the most recently modified `logs/games/<game_id>.log`, or
+  /// nullopt when the per-game logs directory does not exist or is empty.
+  [[nodiscard]] static std::optional<std::filesystem::path> most_recent_game_log(
+      const std::filesystem::path& game_logs_dir);
+
+  /// Lists every per-game run log under `logs/games/` sorted by last write
+  /// time (newest first), paired with the game id parsed from the filename.
+  [[nodiscard]] static std::vector<std::pair<std::string, std::filesystem::path>> list_game_logs(
+      const std::filesystem::path& game_logs_dir);
 };
 
 }  // namespace nxrpg::launcher

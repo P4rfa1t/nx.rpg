@@ -25,6 +25,14 @@ inline constexpr std::string_view kLibraryCache    = "sdmc:/switch/nx.rpg/cache/
 inline constexpr std::string_view kRuntimeDir      = "sdmc:/switch/nx.rpg/runtime";
 inline constexpr std::string_view kLaunchManifest  = "sdmc:/switch/nx.rpg/runtime/launch.json";
 inline constexpr std::string_view kLastRunLog      = "sdmc:/switch/nx.rpg/runtime/last_run.log";
+inline constexpr std::string_view kLogsDir         = "sdmc:/switch/nx.rpg/logs";
+inline constexpr std::string_view kGameLogsDir     = "sdmc:/switch/nx.rpg/logs/games";
+inline constexpr std::string_view kLauncherLog     = "sdmc:/switch/nx.rpg/logs/launcher.log";
+
+/// Returns the per-game core run log path `logs/games/<game_id>.log`.
+[[nodiscard]] inline std::string game_log_path(std::string_view game_id) {
+  return std::string(kGameLogsDir) + "/" + std::string(game_id) + ".log";
+}
 
 /// Returns the canonical NRO path for a target core under `kCoresDir`.
 [[nodiscard]] std::string core_nro_path(CoreKind core);

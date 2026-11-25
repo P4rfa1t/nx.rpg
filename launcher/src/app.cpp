@@ -60,8 +60,11 @@ int LauncherApp::run(const BootContext& ctx) {
   }
 
   if (ctx.returned_from_core) {
-    auto log_sum = EnvironmentDoctor::inspect_last_run_log(
-        std::filesystem::path(ctx.sd_root) / "runtime/last_run.log");
+    // The core appended its session to logs/games/<game_id>.log (see manifest
+    // logPath); check the most recently modified one for fatal markers.
+    auto game_log = EnvironmentDoctor::most_recent_game_log(std::filesystem::path(ctx.sd_root) / "logs/games");
+    auto log_sum = EnvironmentDoctor::inspect_last_run_log(game_log.value_or(
+        std::filesystem::path(ctx.sd_root) / "runtime/last_run.log"));
     if (log_sum.has_fatal) {
       NXLOG_ERROR("app", "last core run reported FATAL [%s/%s]: %s",
                   log_sum.fatal_core.c_str(), log_sum.fatal_code.c_str(),

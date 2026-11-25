@@ -132,7 +132,7 @@ bool CoreDispatcher::dispatch(
   // Keep relative sd_root paths coherent when running under a custom host/preview root
   if (sd_root.generic_string() != paths::kSdRoot) {
     manifest.return_to = (sd_root / "nx.rpg.nro").generic_string();
-    manifest.log_path = (sd_root / "runtime/last_run.log").generic_string();
+    manifest.log_path = (sd_root / "logs/games" / (manifest.game.id + ".log")).generic_string();
     manifest.game.save_path = (sd_root / "saves" / manifest.game.id).generic_string();
     if (!manifest.assets.rtp_path.empty()) {
       std::string rtp_sub = rtp_subdir_for(manifest.game.engine);
@@ -143,6 +143,10 @@ bool CoreDispatcher::dispatch(
   }
 
   const fs::path manifest_path = sd_root / "runtime/launch.json";
+  // Cores append to logs/games/<id>.log (manifest logPath); make sure the
+  // directory exists before the core's fopen(..., "a") runs.
+  std::error_code mk_ec;
+  fs::create_directories(sd_root / "logs/games", mk_ec);
   if (!manifest.save_to_file_atomic(manifest_path)) {
     NXLOG_ERROR("dispatch", "failed to write launch manifest: %s",
                 manifest_path.generic_string().c_str());

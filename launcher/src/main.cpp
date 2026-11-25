@@ -37,7 +37,7 @@ int main(int argc, char* argv[]) {
   }
 
   nxrpg::Logger& logger = nxrpg::Logger::instance();
-  if (!logger.open_file(std::filesystem::path(sd_root_arg) / "runtime/launcher.log")) {
+  if (!logger.open_file(std::filesystem::path(sd_root_arg) / "logs/launcher.log")) {
     // No writable SD root (e.g. host smoke run) — stderr-only logging.
     logger.set_stderr_mirror(true);
   }

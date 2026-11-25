@@ -18,7 +18,7 @@
     "launch": "启动游戏",
     "per_game_settings": "单游戏设置",
     "rescan": "重新扫描目录",
-    "view_last_log": "查看上次运行日志",
+    "view_last_log": "查看游戏运行日志",
     "toggle_favorite": "切换收藏",
     "filter_engine": "筛选引擎",
     "cleanup_tmp": "清理残留 .tmp 并刷新",

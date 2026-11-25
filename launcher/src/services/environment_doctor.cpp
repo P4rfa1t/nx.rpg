@@ -1,11 +1,13 @@
 #include "launcher/services/environment_doctor.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cctype>
 #include <filesystem>
 #include <fstream>
 #include <string>
 #include <system_error>
+#include <utility>
 
 #include "launcher/services/config_service.hpp"
 #include "nxrpg/paths.hpp"
@@ -156,17 +158,24 @@ std::vector<DiagnosticItem> EnvironmentDoctor::run_all_checks(
                                : "No orphaned .tmp files; FAT32 recommended over exFAT",
                    ""});
 
-  // 6. Last run log inspection
-  LastRunLogSummary log = inspect_last_run_log(sd_root / "runtime/last_run.log");
-  if (log.has_fatal) {
-    items.push_back({DiagnosticItem::Severity::Error,
-                     "Last Run Log",
-                     "Fatal error in last run [" + log.fatal_core + "/" + log.fatal_code + "]: " + log.fatal_message,
-                     "Inspect runtime/last_run.log in the Diagnostics view."});
-  } else if (log.exists) {
+  // 6. Per-game run log inspection (logs/games/<game_id>.log, newest first)
+  fs::path game_logs_dir = sd_root / "logs/games";
+  auto game_logs = list_game_logs(game_logs_dir);
+  bool any_fatal = false;
+  for (const auto& [game_id, log_path] : game_logs) {
+    LastRunLogSummary log = inspect_last_run_log(log_path);
+    if (log.has_fatal) {
+      any_fatal = true;
+      items.push_back({DiagnosticItem::Severity::Error,
+                       "Game Log: " + game_id,
+                       "Fatal error in last run [" + log.fatal_core + "/" + log.fatal_code + "]: " + log.fatal_message,
+                       "Inspect " + fs::path(log_path).generic_string() + " in the Diagnostics view."});
+    }
+  }
+  if (!game_logs.empty() && !any_fatal) {
     items.push_back({DiagnosticItem::Severity::Ok,
-                     "Last Run Log",
-                     "Last core session exited without [nx.rpg][FATAL] markers",
+                     "Game Logs",
+                     std::to_string(game_logs.size()) + " per-game log(s), none with [nx.rpg][FATAL]",
                      ""});
   }
 
@@ -176,7 +185,7 @@ std::vector<DiagnosticItem> EnvironmentDoctor::run_all_checks(
 std::size_t EnvironmentDoctor::count_orphaned_tmp_files(const fs::path& sd_root) {
   std::size_t count = 0;
   std::error_code ec;
-  for (const char* sub : {"config", "cache", "runtime", "saves"}) {
+  for (const char* sub : {"config", "cache", "runtime", "saves", "logs"}) {
     fs::path dir = sd_root / sub;
     if (!fs::is_directory(dir, ec)) continue;
     for (fs::recursive_directory_iterator it(dir, ec);
@@ -194,7 +203,7 @@ std::size_t EnvironmentDoctor::count_orphaned_tmp_files(const fs::path& sd_root)
 std::size_t EnvironmentDoctor::cleanup_orphaned_tmp_files(const fs::path& sd_root) {
   std::size_t removed = 0;
   std::error_code ec;
-  for (const char* sub : {"config", "cache", "runtime", "saves"}) {
+  for (const char* sub : {"config", "cache", "runtime", "saves", "logs"}) {
     fs::path dir = sd_root / sub;
     if (!fs::is_directory(dir, ec)) continue;
     std::vector<fs::path> to_delete;
@@ -213,6 +222,42 @@ std::size_t EnvironmentDoctor::cleanup_orphaned_tmp_files(const fs::path& sd_roo
     }
   }
   return removed;
+}
+
+std::optional<fs::path> EnvironmentDoctor::most_recent_game_log(const fs::path& game_logs_dir) {
+  auto logs = list_game_logs(game_logs_dir);
+  if (logs.empty()) return std::nullopt;
+  return logs.front().second;
+}
+
+std::vector<std::pair<std::string, fs::path>> EnvironmentDoctor::list_game_logs(
+    const fs::path& game_logs_dir) {
+  std::vector<std::pair<std::string, fs::path>> out;
+  std::error_code ec;
+  if (!fs::is_directory(game_logs_dir, ec)) return out;
+
+  struct Entry {
+    std::string game_id;
+    fs::path path;
+    fs::file_time_type mtime;
+  };
+  std::vector<Entry> entries;
+  for (fs::directory_iterator it(game_logs_dir, ec); !ec && it != fs::directory_iterator(); it.increment(ec)) {
+    if (!it->is_regular_file(ec)) continue;
+    fs::path p = it->path();
+    std::string ext = to_lower_ascii(p.extension().string());
+    if (ext != ".log") continue;
+    std::string stem = p.stem().string();
+    if (stem.empty()) continue;
+    entries.push_back({std::move(stem), p, it->last_write_time(ec)});
+  }
+  std::sort(entries.begin(), entries.end(),
+            [](const Entry& a, const Entry& b) { return a.mtime > b.mtime; });
+  out.reserve(entries.size());
+  for (auto& e : entries) {
+    out.push_back({std::move(e.game_id), std::move(e.path)});
+  }
+  return out;
 }
 
 LastRunLogSummary EnvironmentDoctor::inspect_last_run_log(
