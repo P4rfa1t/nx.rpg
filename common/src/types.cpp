@@ -61,6 +61,8 @@ std::string_view to_string(TextEncoding encoding) noexcept {
 
 std::string_view to_string(CpuProfile profile) noexcept {
   switch (profile) {
+    case CpuProfile::SystemDefault:
+      return "system_default";
     case CpuProfile::Stock1020:
       return "stock_1020";
     case CpuProfile::Boost1581:
@@ -68,7 +70,7 @@ std::string_view to_string(CpuProfile profile) noexcept {
     case CpuProfile::Boost1785:
       return "boost_1785";
     default:
-      return "stock_1020";
+      return "system_default";
   }
 }
 
@@ -117,6 +119,7 @@ std::optional<TextEncoding> parse_text_encoding(std::string_view text) noexcept 
 }
 
 std::optional<CpuProfile> parse_cpu_profile(std::string_view text) noexcept {
+  if (text == "system_default") return CpuProfile::SystemDefault;
   if (text == "stock_1020") return CpuProfile::Stock1020;
   if (text == "boost_1581") return CpuProfile::Boost1581;
   if (text == "boost_1785") return CpuProfile::Boost1785;

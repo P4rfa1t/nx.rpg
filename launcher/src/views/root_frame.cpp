@@ -64,9 +64,10 @@ RootFrame::RootFrame(BootContext ctx, std::shared_ptr<I18nService> i18n)
     }
     box->addView(lang_cell);
 
-    // CPU profile selector
-    static const std::array<CpuProfile, 3> kCpus = {
-        CpuProfile::Stock1020, CpuProfile::Boost1581, CpuProfile::Boost1785};
+    // CPU profile selector ("Follow System" never touches clkrst, so a user
+    // overclock sysmodule / KIP patch keeps control of CPU clocks)
+    static const std::array<CpuProfile, 4> kCpus = {
+        CpuProfile::SystemDefault, CpuProfile::Stock1020, CpuProfile::Boost1581, CpuProfile::Boost1785};
     auto* cpu_cell = new brls::SelectorCell();
     int cpu_idx = 0;
     for (std::size_t i = 0; i < kCpus.size(); ++i) {
@@ -74,7 +75,7 @@ RootFrame::RootFrame(BootContext ctx, std::shared_ptr<I18nService> i18n)
     }
     cpu_cell->init(
         i18n_->translate("settings.cpu_profile", "CPU Clock Profile"),
-        {"1020 MHz (Stock)", "1581 MHz (Boost)", "1785 MHz (Max Boost)"},
+        {"Follow System", "1020 MHz (Stock)", "1581 MHz (Boost)", "1785 MHz (Max Boost)"},
         cpu_idx,
         [this](int selected) {
           GlobalConfig updated = ConfigService::load_global(ctx_.sd_root);

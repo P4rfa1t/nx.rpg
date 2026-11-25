@@ -117,8 +117,8 @@
         },
         "cpuProfile": {
           "type": "string",
-          "enum": ["stock_1020", "boost_1581", "boost_1785"],
-          "default": "stock_1020"
+          "enum": ["system_default", "stock_1020", "boost_1581", "boost_1785"],
+          "default": "system_default"
         },
         "enableTouch": {
           "type": "boolean",

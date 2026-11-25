@@ -36,7 +36,7 @@ struct LaunchManifest {
   struct RuntimeSection {
     TextEncoding encoding = TextEncoding::Auto;
     std::uint8_t rgss_version = 0;
-    CpuProfile cpu_profile = CpuProfile::Stock1020;
+    CpuProfile cpu_profile = CpuProfile::SystemDefault;
     bool enable_touch = true;
     bool enable_software_keyboard = true;
   } runtime;

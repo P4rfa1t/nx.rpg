@@ -60,7 +60,7 @@ LaunchManifest ConfigMerger::build_launch_manifest(
     m.runtime.encoding = TextEncoding::Auto;
   }
   m.runtime.rgss_version = rgss_version_for_engine(m.game.engine);
-  m.runtime.cpu_profile = CpuProfile::Stock1020;
+  m.runtime.cpu_profile = CpuProfile::SystemDefault;
   m.runtime.enable_touch = true;
   m.runtime.enable_software_keyboard = true;
 

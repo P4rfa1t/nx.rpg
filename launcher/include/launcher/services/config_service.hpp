@@ -18,7 +18,7 @@ struct GlobalConfig {
   bool warn_on_applet_mode = true;
 
   struct {
-    CpuProfile default_cpu_profile = CpuProfile::Stock1020;
+    CpuProfile default_cpu_profile = CpuProfile::SystemDefault;
   } performance;
 
   struct {

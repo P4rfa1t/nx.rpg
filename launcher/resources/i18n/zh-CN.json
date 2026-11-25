@@ -52,7 +52,8 @@
     "missing_core": "缺少对应核心文件，无法启动。",
     "missing_game": "游戏目录不存在或已被移除。",
     "missing_rtp_confirm": "检测到游戏可能需要共享 RTP，但对应 RTP 目录为空，是否继续启动？",
-    "applet_confirm_title": "Applet 低内存模式警告"
+    "applet_confirm_title": "Applet 低内存模式警告",
+    "dispatch_failed": "启动失败：无法写入 runtime/launch.json，请查看“环境与日志自检”。"
   },
   "diagnostics": {
     "launcher_log": "启动器日志",

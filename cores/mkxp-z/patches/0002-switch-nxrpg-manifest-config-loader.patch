@@ -118,7 +118,7 @@ index ae7c535..27cef4c 100644
 +        std::string savePath;
 +        std::string returnTo;
 +        std::string logPath;
-+        std::string cpuProfile = "stock_1020";
++        std::string cpuProfile = "system_default";
 +        bool swapConfirmCancel = false;
 +        std::vector<std::string> exitCombo = {"L", "R", "PLUS"};
 +    } nxrpg;

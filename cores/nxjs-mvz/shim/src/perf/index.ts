@@ -14,6 +14,7 @@ export interface PerformanceController {
 }
 
 const PROFILE_HZ: Record<CpuProfile, number> = {
+  system_default: 0,  // never touch clkrst: Horizon powerd / user OC kip keeps control
   stock_1020: 1020000000,
   boost_1581: 1581000000,
   boost_1785: 1785000000,
@@ -24,8 +25,8 @@ export class PerformanceControllerImpl implements PerformanceController {
   private monitorId: any = null;
 
   applyCpuProfile(profile: CpuProfile): void {
-    const hz = PROFILE_HZ[profile] ?? PROFILE_HZ.stock_1020;
-    if (hz === PROFILE_HZ.stock_1020) return;
+    const hz = PROFILE_HZ[profile] ?? 0;
+    if (hz === 0) return;
 
     try {
       const sw = (globalThis as any).Switch;
@@ -47,6 +48,7 @@ export class PerformanceControllerImpl implements PerformanceController {
       this.monitorId = null;
     }
     try {
+      // Only reset when we actually raised the clock in this session.
       if (this.sessionSrv) {
         this.sessionSrv.dispatchIn(7, new Uint32Array([PROFILE_HZ.stock_1020]).buffer);
         this.sessionSrv.close?.();

@@ -38,10 +38,13 @@ enum class TextEncoding : std::uint8_t {
 };
 
 /// Switch PCV / clkrst CPU clock preset.
+/// `SystemDefault` never touches clkrst: the Horizon powerd profile (or a user
+/// overclock sysmodule / KIP patch) stays in control of CPU clocks.
 enum class CpuProfile : std::uint8_t {
-  Stock1020 = 0,  // 1020 MHz (Horizon OS default)
-  Boost1581,      // 1581 MHz (balanced boost for heavy maps/scripts)
-  Boost1785,      // 1785 MHz (maximum safe Switch CPU clock)
+  SystemDefault = 0,  // Do not change clocks (follow system powerd / OC kip)
+  Stock1020,          // Pin to 1020 MHz (Horizon OS default)
+  Boost1581,          // 1581 MHz (balanced boost for heavy maps/scripts)
+  Boost1785,          // 1785 MHz (maximum safe Switch CPU clock)
 };
 
 /// Viewport aspect scaling policy.

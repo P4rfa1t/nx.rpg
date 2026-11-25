@@ -44,9 +44,9 @@
       "properties": {
         "defaultCpuProfile": {
           "type": "string",
-          "enum": ["stock_1020", "boost_1581", "boost_1785"],
-          "default": "stock_1020",
-          "description": "Switch CPU clock profile via clkrst/pcv (1020 MHz stock, 1581 MHz medium boost, 1785 MHz max safe boost)."
+          "enum": ["system_default", "stock_1020", "boost_1581", "boost_1785"],
+          "default": "system_default",
+          "description": "Switch CPU clock profile. system_default never touches clkrst (Horizon powerd or a user OC sysmodule stays in control); stock_1020/boost_1581/boost_1785 pin the clock via clkrst/pcv."
         }
       },
       "additionalProperties": false

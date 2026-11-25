@@ -105,11 +105,11 @@ diff --git a/src/config.h b/src/config.h
 index 27cef4c..fe42cdf 100644
 --- a/src/config.h
 +++ b/src/config.h
-@@ -127,6 +127,7 @@ struct Config {
-         std::string logPath;
-         std::string cpuProfile = "stock_1020";
+@@ -128,6 +130,7 @@ struct Config {
+         std::string cpuProfile = "system_default";
          bool swapConfirmCancel = false;
 +        bool enableSoftwareKeyboard = true;
          std::vector<std::string> exitCombo = {"L", "R", "PLUS"};
      } nxrpg;
      float fontScale;
+     bool fontKerning;

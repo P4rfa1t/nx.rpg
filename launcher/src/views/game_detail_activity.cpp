@@ -114,9 +114,10 @@ brls::View* GameDetailActivity::createContentView() {
       });
   box->addView(enc_cell);
 
-  // CPU profile override
-  static const std::array<const char*, 4> kCpus = {
-      "inherit", "stock_1020", "boost_1581", "boost_1785"};
+  // CPU profile override ("inherit" defers to global.json; "system_default"
+  // never touches clkrst so a user OC sysmodule stays in control)
+  static const std::array<const char*, 5> kCpus = {
+      "inherit", "system_default", "stock_1020", "boost_1581", "boost_1785"};
   int cpu_idx = 0;
   for (std::size_t i = 0; i < kCpus.size(); ++i) {
     if (cfg.cpu_profile == kCpus[i]) cpu_idx = static_cast<int>(i);
@@ -124,7 +125,7 @@ brls::View* GameDetailActivity::createContentView() {
   auto* cpu_cell = new brls::SelectorCell();
   cpu_cell->init(
       i18n_->translate("settings.cpu_profile", "CPU Profile"),
-      {"Inherit Global", "1020 MHz", "1581 MHz", "1785 MHz"},
+      {"Inherit Global", "Follow System", "1020 MHz", "1581 MHz", "1785 MHz"},
       cpu_idx,
       [this](int selected) {
         PerGameConfig updated = ConfigService::load_per_game(ctx_.sd_root, entry_.game.id);

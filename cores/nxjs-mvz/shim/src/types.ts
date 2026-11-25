@@ -1,5 +1,5 @@
 export type MvzEngineKind = 'rmmv' | 'rmmz';
-export type CpuProfile = 'stock_1020' | 'boost_1581' | 'boost_1785';
+export type CpuProfile = 'system_default' | 'stock_1020' | 'boost_1581' | 'boost_1785';
 export type ScalingMode = 'fit' | 'stretch' | 'native';
 
 export interface LaunchManifest {

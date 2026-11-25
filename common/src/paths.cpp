@@ -222,6 +222,11 @@ bool write_file_atomic(
     return false;
   }
 
+  // Horizon fsdev rename() does NOT clobber an existing target (non-POSIX),
+  // so a stale target must be removed first. This made every re-write of
+  // launch.json / global.json / library.json fail after the first write.
+  fs::remove(target_path, ec);
+  ec.clear();
   fs::rename(tmp_path, target_path, ec);
   if (ec) {
     fs::remove(tmp_path, ec);

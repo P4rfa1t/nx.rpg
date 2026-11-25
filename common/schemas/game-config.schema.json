@@ -40,7 +40,7 @@
       "properties": {
         "cpuProfile": {
           "type": "string",
-          "enum": ["inherit", "stock_1020", "boost_1581", "boost_1785"],
+          "enum": ["inherit", "system_default", "stock_1020", "boost_1581", "boost_1785"],
           "default": "inherit"
         }
       },

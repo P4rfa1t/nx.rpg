@@ -6,6 +6,7 @@
 #include "launcher/services/config_service.hpp"
 #include "launcher/services/core_dispatcher.hpp"
 #include "launcher/views/game_detail_activity.hpp"
+#include "nxrpg/logger.hpp"
 
 namespace nxrpg::launcher::views {
 
@@ -188,7 +189,11 @@ void GameGridTab::launch_game_with_precheck(const DetectedGame& game) {
     if (CoreDispatcher::dispatch(game, ctx_.sd_root, true)) {
       brls::Application::quit();
     } else {
-      brls::Application::notify("Dispatched launch.json (Switch envSetNextLoad inactive on host)");
+      // Dispatch failed (launch manifest write or envSetNextLoad) — surface the
+      // error instead of the misleading "dispatched" toast; user can retry.
+      NXLOG_ERROR("grid", "dispatch failed for game=%s", game.id.c_str());
+      brls::Application::notify(
+          i18n_->translate("precheck.dispatch_failed", "Launch failed: could not write launch manifest. See Environment & Logs."));
     }
   };
 

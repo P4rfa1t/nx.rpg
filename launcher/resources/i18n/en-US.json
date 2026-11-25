@@ -52,7 +52,8 @@
     "missing_core": "Required core NRO is missing on the SD card.",
     "missing_game": "Game directory no longer exists.",
     "missing_rtp_confirm": "This game may require shared RTP assets, but the RTP pool is empty. Launch anyway?",
-    "applet_confirm_title": "Applet Mode Memory Warning"
+    "applet_confirm_title": "Applet Mode Memory Warning",
+    "dispatch_failed": "Launch failed: could not write runtime/launch.json. Check Environment & Logs."
   },
   "diagnostics": {
     "launcher_log": "Launcher Log",

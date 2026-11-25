@@ -5,7 +5,7 @@
   "fallbackFontPath": "sdmc:/switch/nx.rpg/fonts/NotoSansCJK-Regular.ttc",
   "warnOnAppletMode": true,
   "performance": {
-    "defaultCpuProfile": "stock_1020"
+    "defaultCpuProfile": "system_default"
   },
   "video": {
     "scalingMode": "fit",

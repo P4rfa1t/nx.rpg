@@ -2,7 +2,7 @@ diff --git a/src/platform/switch/main.cpp b/src/platform/switch/main.cpp
 index 8ad2881..4c96fe0 100644
 --- a/src/platform/switch/main.cpp
 +++ b/src/platform/switch/main.cpp
-@@ -17,14 +17,219 @@
+@@ -17,14 +17,223 @@
  
  #include <switch.h>
  #include <unistd.h>
@@ -131,11 +131,15 @@ index 8ad2881..4c96fe0 100644
 +	}
 +
 +	void ApplyCpuProfile(std::string_view profile) {
++		/* system_default (default): never touch clkrst, so Horizon powerd or
++		 * a user overclock sysmodule keeps control of CPU clocks. */
 +		uint32_t hz = 0;
 +		if (profile == "boost_1581") {
 +			hz = 1581000000u;
 +		} else if (profile == "boost_1785") {
 +			hz = 1785000000u;
++		} else if (profile == "stock_1020") {
++			hz = 1020000000u;
 +		} else {
 +			return;
 +		}
