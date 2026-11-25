@@ -12,7 +12,7 @@
   - `rm2k` (2000)、`rm2k3` (2003) → **EasyRPG Player** (`cores/easyrpg.nro`)
   - `rmmv` (MV)、`rmmz` (MZ) → **nx.js + MV/MZ Shim** (`cores/nxjs-mvz.nro`)
   - `rmxp` (XP / RGSS1)、`rmvx` (VX / RGSS2)、`rmvxa` (VX Ace / RGSS3) → **mkxp-z** (`cores/mkxp-z.nro`)
-- **当前进度**：**Phase 1–4 代码全部完成**（`common/` 公共库 + 7 项宿主机 ctest、Borealis 前端 MVP 含封面缓存/收藏/游玩时长/诊断中心、三大核心补丁队列 easyrpg×3 / nxjs-mvz×1 / mkxp-z×5 全部打通，四枚 NRO 已在 Docker `nxrpg-devkita64` 交叉编译产出）。Phase 5 部分：`.github/workflows/build.yml` 四目标并行构建已上线。**剩余：实机（Switch 真机/模拟器）闭环验收、插件兼容性迭代、发布打包流水线**。
+- **当前进度**：**Phase 1–4 代码全部完成**（`common/` 公共库 + 7 项宿主机 ctest、Borealis 前端 MVP 含封面缓存/收藏/游玩时长/诊断中心、三大核心补丁队列 easyrpg×3 / nxjs-mvz×1 / mkxp-z×5 全部打通，四枚 NRO 已在 Docker `nxrpg-devkita64` 交叉编译产出）。Phase 5 部分：CI 已拆分为四个按路径过滤的独立构建 workflow（`build-launcher.yml` / `build-easyrpg.yml` / `build-nxjs-mvz.yml` / `build-mkxp-z.yml`），`release.yml`（打 `v*` tag）产出双 zip + GPL 源码归档并发布 GitHub Releases。**剩余：实机（Switch 真机/模拟器）闭环验收、插件兼容性迭代**。
 - **实机验收发现并已修复（2026-11-25，commit f321479）**：
   1. **Horizon fsdev `rename()` 不覆盖已存在目标**（非 POSIX）：`write_file_atomic` 必须先 `fs::remove` 旧目标再 rename，否则 manifest/global.json/library.json 首次写入后全部失败（症状：launcher.log 反复 `failed to write launch manifest`、`last_game=` 永远为空）。
   2. **CPU 频率档新增 `system_default`（新默认值）**：核心完全不调用 `clkrst`，尊重系统 powerd 或用户自装超频 KIP；此前 boost 档退出时会把频率压回 1020 MHz，覆盖掉用户的超频设置。
