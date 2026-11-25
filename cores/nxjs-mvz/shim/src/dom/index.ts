@@ -149,6 +149,18 @@ export class DomShimControllerImpl implements DomShimController {
         if (this._offscreen) this._offscreen.height = v;
       }
 
+      /* Native surface backing this shim canvas. Skia's drawImage /
+       * createPattern reject plain JS objects ("Image or Canvas expected"),
+       * so 2D contexts must unwrap ShimCanvas/ShimImage before native calls
+       * (PixiJS v4 probes blend modes by canvas→canvas drawImage at load). */
+      ensureNativeSurface(): any {
+        if (this._isPrimary && scr) return scr;
+        if (!this._offscreen && typeof g.OffscreenCanvas === 'function') {
+          this._offscreen = new g.OffscreenCanvas(this._width || 1, this._height || 1);
+        }
+        return this._offscreen;
+      }
+
       override getContext(contextId: string, _opts?: any): any {
         const lower = String(contextId).toLowerCase();
         const wantsWebgl =
@@ -166,14 +178,37 @@ export class DomShimControllerImpl implements DomShimController {
         if (lower === '2d' && !self.primaryClaimed && preferredRenderer === 'canvas2d' && scr) {
           self.primaryClaimed = true;
           this._isPrimary = true;
-          return scr.getContext('2d');
+          return wrap2dContext(scr.getContext('2d'));
         }
 
-        if (!this._offscreen && typeof g.OffscreenCanvas === 'function') {
-          this._offscreen = new g.OffscreenCanvas(this._width || 1, this._height || 1);
-        }
-        return this._offscreen ? this._offscreen.getContext('2d') : null;
+        const native = this.ensureNativeSurface();
+        return native ? wrap2dContext(native.getContext('2d')) : null;
       }
+    }
+
+    /* nx.js native Image / OffscreenCanvas instances live one hop inside our
+     * shim elements; unwrap them so native 2D calls never see a plain object. */
+    function unwrapCanvasSource(src: any): any {
+      if (!src) return src;
+      if (src instanceof ShimCanvas) return src.ensureNativeSurface();
+      if (src instanceof ShimImage) return src.nativeImg;
+      return src;
+    }
+
+    function wrap2dContext(nativeCtx: any): any {
+      if (!nativeCtx || (nativeCtx as any).__nxrpgUnwrapped) return nativeCtx;
+      const ctx = nativeCtx as any;
+      if (typeof ctx.drawImage === 'function') {
+        const origDrawImage = ctx.drawImage.bind(ctx);
+        ctx.drawImage = (src: any, ...rest: any[]) => origDrawImage(unwrapCanvasSource(src), ...rest);
+      }
+      if (typeof ctx.createPattern === 'function') {
+        const origCreatePattern = ctx.createPattern.bind(ctx);
+        ctx.createPattern = (src: any, ...rest: any[]) =>
+          origCreatePattern(unwrapCanvasSource(src), ...rest);
+      }
+      ctx.__nxrpgUnwrapped = true;
+      return ctx;
     }
 
     class ShimInputElement extends ShimElement {
@@ -200,7 +235,7 @@ export class DomShimControllerImpl implements DomShimController {
       complete = false;
       naturalWidth = 0;
       naturalHeight = 0;
-      private nativeImg: any = null;
+      nativeImg: any = null;
 
       constructor() {
         super('IMG');

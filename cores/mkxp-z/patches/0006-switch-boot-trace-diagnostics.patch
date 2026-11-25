@@ -417,3 +417,24 @@
          stdPath = fs::current_path() / stdPath;
  
      stdPath = stdPath.lexically_normal();
+--- a/src/sharedstate.cpp
++++ b/src/sharedstate.cpp
+@@ -141,8 +141,16 @@
+ 
+ 		fileSystem.addPath(".");
+ 
+-		for (size_t i = 0; i < config.rtps.size(); ++i)
+-			fileSystem.addPath(config.rtps[i].c_str());
++		/* nx.rpg: a missing/unmountable RTP directory must not kill the core 
++		 * (FullPackageFlag games ship everything; shared RTP is optional).
++		 * addPath throws PhysFSError on failure; degrade to a warning. */
++		for (size_t i = 0; i < config.rtps.size(); ++i) {
++			try {
++				fileSystem.addPath(config.rtps[i].c_str());
++			} catch (const Exception &e) {
++				Debug() << "RTP mount failed (continuing without):" << e.msg;
++			}
++		}
+ 
+ 		if (config.pathCache)
+ 			fileSystem.createPathCache();

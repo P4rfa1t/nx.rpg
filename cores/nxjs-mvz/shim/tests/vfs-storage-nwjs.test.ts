@@ -225,7 +225,11 @@ describe('CaseInsensitiveVfsImpl, IsolatedSaveStorageImpl & NwjsSandboxShimImpl'
       // Subsequent canvases do NOT touch screen.getContext('2d')
       const bitmapCanvas = g.document.createElement('canvas');
       const ctx2d = bitmapCanvas.getContext('2d');
-      expect(ctx2d).toEqual({ isOffscreen2d: true });
+      // 2d contexts come back wrapped: drawImage/createPattern unwrap
+      // ShimCanvas/ShimImage sources for Skia (see dom/index.ts wrap2dContext).
+      // The fake OffscreenCanvas ctx has no drawImage, so only the marker applies.
+      expect(ctx2d.isOffscreen2d).toBe(true);
+      expect(ctx2d.__nxrpgUnwrapped).toBe(true);
       expect(webglCalls).toEqual(['webgl2']);
     } finally {
       g.screen = prevScreen;

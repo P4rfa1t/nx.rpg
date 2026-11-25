@@ -1,2 +1,3 @@
 # Patch series for TooTallNate/nx.js @ 462203af39179fb630ae7fe981f3361b7147cdfb
 0001-applet-bind-env-set-next-load.patch
+0002-switch-log-to-nxrpg-logs-dir.patch

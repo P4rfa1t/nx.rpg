@@ -1,0 +1,36 @@
+diff --git a/source/main.cc b/source/main.cc
+--- a/source/main.cc
++++ b/source/main.cc
+@@ -1,9 +1,10 @@
+ #include <errno.h>
+ #include <malloc.h>
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
+ #include <strings.h>
+ #include <unistd.h>
++#include <sys/stat.h>
+ 
+ #include <ada.h>
+@@ -83,6 +84,8 @@
+ 
+ using namespace v8;
+ 
+-#define LOG_FILENAME "nxjs-debug.log"
++/* nx.rpg: keep the nx.js stderr debug log with all other nx.rpg logs.
++ * Absolute path so the file lands in logs/ regardless of the NRO's cwd. */
++#define LOG_FILENAME "sdmc:/switch/nx.rpg/logs/nxjs-debug.log"
+ 
+ // runtime.js source, embedded as a byte array by the build (runtime_js.c).
+@@ -1419,6 +1426,9 @@
+ 	// Redirect stderr to the on-SD debug log NOW (before socket init and the
+ 	// config parse) so that `[config]`/`[v8]`/`[skia]` diagnostics — including
+ 	// any "value not honored" lines from the nxjs.ini parse below — are
+-	// captured to sdmc:/switch/nxjs-debug.log.
++	// captured to sdmc:/switch/nx.rpg/logs/nxjs-debug.log.
++	/* nx.rpg: ensure the logs directory exists before freopen("w"). */
++	mkdir("sdmc:/switch/nx.rpg", 0777);
++	mkdir("sdmc:/switch/nx.rpg/logs", 0777);
+ 	g_debug_fd = freopen(LOG_FILENAME, "w", stderr);
+ 
+	// Take a process-lifetime nvdrv reference NOW, while memory is plentiful.
