@@ -71,6 +71,8 @@ export function joinPosix(...parts: string[]): string {
 
 /**
  * Atomic `<target>.tmp` -> write -> rename pattern for Horizon OS FAT32/exFAT safety.
+ * Horizon fsdev rename() does NOT clobber an existing target (non-POSIX), so the
+ * stale target is removed first — otherwise every rewrite after the first fails.
  */
 export function writeFileAtomicSync(
   fs: RuntimeFs,
@@ -85,5 +87,10 @@ export function writeFileAtomicSync(
   }
   const tmpPath = `${targetPath}.tmp`;
   fs.writeFileSync(tmpPath, bytes);
+  try {
+    fs.removeSync(targetPath);
+  } catch {
+    // target may not exist yet
+  }
   fs.renameSync(tmpPath, targetPath);
 }
