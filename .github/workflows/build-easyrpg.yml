@@ -105,7 +105,7 @@ jobs:
           PKG_CONFIG_LIBDIR="$PREFIX/lib/pkgconfig" meson setup pixman-build pixman-0.46.4 \
             --cross-file meson-switch.txt \
             --prefix="$PREFIX" --libdir=lib --buildtype=release -Ddefault_library=static \
-            -Dtests=disabled -demos=disabled -Dlibpng=disabled
+            -Dtests=disabled -Ddemos=disabled -Dlibpng=disabled
           meson compile -C pixman-build -j"$NPROC" && meson install -C pixman-build
 
           # ICU (native + cross) for liblcf
