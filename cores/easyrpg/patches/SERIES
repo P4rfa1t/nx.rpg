@@ -4,3 +4,4 @@
 0001-switch-nxrpg-manifest-and-chainload.patch
 0002-switch-enable-custom-rtp-path.patch
 0003-switch-swkbd-name-input.patch
+0004-switch-boot-trace-and-log-mirror.patch

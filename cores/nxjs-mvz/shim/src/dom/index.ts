@@ -88,18 +88,33 @@ export class DomShimControllerImpl implements DomShimController {
         this.children.push(child);
         if (child.tagName === 'SCRIPT' && child.src) {
           queueMicrotask(() => {
+            let asset: ReturnType<typeof vfs.readAssetBytes>;
             try {
-              const asset = vfs.readAssetBytes(child.src);
-              if (asset) {
-                const code = new TextDecoder().decode(asset.bytes);
-                (0, eval)(code);
-                if (child.onload) child.onload();
-                child.dispatchEvent({ type: 'load' });
-              } else if (child.onerror) {
-                child.onerror(new Error(`Script not found: ${child.src}`));
-              }
+              asset = vfs.readAssetBytes(child.src);
+              if (!asset) throw new Error(`Script not found: ${child.src}`);
             } catch (err) {
-              if (child.onerror) child.onerror(err);
+              console.error(`[nx.rpg] Script load failed: ${child.src}`, err);
+              const event = { type: 'error', target: child, currentTarget: child, error: err };
+              try {
+                child.onerror?.call(child, event);
+                child.dispatchEvent(event);
+              } catch (handlerError) {
+                console.error(`[nx.rpg] Script error handler failed: ${child.src}`, handlerError);
+              }
+              return;
+            }
+            try {
+              (0, eval)(new TextDecoder().decode(asset.bytes));
+            } catch (err) {
+              // Browsers report execution exceptions separately from resource-load errors.
+              console.error(`[nx.rpg] Script execution failed: ${child.src}`, err);
+              return;
+            }
+            try {
+              child.onload?.call(child);
+              child.dispatchEvent({ type: 'load', target: child, currentTarget: child });
+            } catch (err) {
+              console.error(`[nx.rpg] Script load handler failed: ${child.src}`, err);
             }
           });
         }
@@ -340,9 +355,21 @@ export class DomShimControllerImpl implements DomShimController {
       }
       const code = new TextDecoder().decode(scriptAsset.bytes);
       (0, eval)(code);
+      // Dynamic scripts with async=false must run before the page load handler.
+      await new Promise<void>((resolve) => queueMicrotask(resolve));
     }
 
     const g = globalThis as any;
+    // MV's error screen can itself fail before Graphics has created its canvas.
+    // Log the original exception before its handler attempts to render it.
+    const sceneManager = g.SceneManager;
+    if (sceneManager && typeof sceneManager.catchException === 'function') {
+      const originalCatchException = sceneManager.catchException;
+      sceneManager.catchException = function (error: unknown) {
+        console.error('[nx.rpg] SceneManager exception:', error);
+        return originalCatchException.call(this, error);
+      };
+    }
     if (typeof g.onload === 'function') {
       g.onload();
     }

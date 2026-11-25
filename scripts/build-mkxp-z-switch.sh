@@ -59,7 +59,7 @@ meson setup "$BUILD_DIR" "$SRC_STAGE" \
   -Daarch64_neon=enabled \
   -Duse_miniffi=false \
   -Dworkdir_current=true \
-  -Dcjk_fallback_font=false \
+  -Dcjk_fallback_font=true \
   -Dopenssl=disabled \
   -Dangle=disabled \
   -Dextra_shaders=disabled \

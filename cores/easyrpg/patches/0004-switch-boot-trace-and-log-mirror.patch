@@ -1,0 +1,151 @@
+diff --git a/src/platform/switch/main.cpp b/src/platform/switch/main.cpp
+index 13eec3a..481e14e 100644
+--- a/src/platform/switch/main.cpp
++++ b/src/platform/switch/main.cpp
+@@ -60,6 +60,69 @@ namespace nxrpg_bridge {
+ 	}
+ }
+ 
++#ifdef PLAYER_NINTENDO
++#include <csignal>
++#include <cstdarg>
++#include <exception>
++#include <unistd.h>
++
++/* nx.rpg: fixed-path boot tracer (open-append-close per line) so crashes
++ * before Output::Init still leave a trail on the SD card. */
++static void nxrpg_eboot(const char* fmt, ...) {
++	FILE* fp = std::fopen("sdmc:/switch/nx.rpg/logs/easyrpg-boot.log", "a");
++	if (!fp) return;
++	va_list ap;
++	va_start(ap, fmt);
++	std::vfprintf(fp, fmt, ap);
++	va_end(ap);
++	std::fputc('\n', fp);
++	std::fflush(fp);
++	fsync(fileno(fp));
++	std::fclose(fp);
++}
++static const char* nxrpg_esig_name(int sig) {
++	switch (sig) {
++	case SIGSEGV: return "SIGSEGV";
++	case SIGABRT: return "SIGABRT";
++	case SIGBUS:  return "SIGBUS";
++	case SIGILL:  return "SIGILL";
++	case SIGFPE:  return "SIGFPE";
++	default:      return "SIG?";
++	}
++}
++static void nxrpg_esignal_handler(int sig) {
++	FILE* fp = std::fopen("sdmc:/switch/nx.rpg/logs/easyrpg-boot.log", "a");
++	if (fp) {
++		std::fprintf(fp, "[nx.rpg][FATAL][core=easyrpg][code=SIG] %d (%s)\n",
++			sig, nxrpg_esig_name(sig));
++		std::fflush(fp);
++		fsync(fileno(fp));
++		std::fclose(fp);
++	}
++	_exit(128 + sig);
++}
++static void nxrpg_eterminate_handler() {
++	if (std::current_exception()) {
++		nxrpg_eboot("[nx.rpg][FATAL][core=easyrpg][code=CXX] exception escaped to std::terminate");
++	} else {
++		nxrpg_eboot("[nx.rpg][FATAL][core=easyrpg][code=CXX] std::terminate called (no active exception)");
++	}
++	_exit(70);
++}
++static void nxrpg_eboot_init() {
++	FILE* fp = std::fopen("sdmc:/switch/nx.rpg/logs/easyrpg-boot.log", "a");
++	if (fp) {
++		std::fclose(fp);
++		signal(SIGSEGV, nxrpg_esignal_handler);
++		signal(SIGABRT, nxrpg_esignal_handler);
++		signal(SIGBUS, nxrpg_esignal_handler);
++		signal(SIGILL, nxrpg_esignal_handler);
++		signal(SIGFPE, nxrpg_esignal_handler);
++		std::set_terminate(nxrpg_eterminate_handler);
++	}
++}
++#endif
++
+ namespace {
+ 	int nxlinkSocket = -1;
+ 	bool is_nro = true;
+@@ -278,13 +341,20 @@ static void LogCallback(LogLevel lvl, std::string const& msg, LogCallbackUserDat
+ 		printf("%s: %s\n", prefix.c_str(), msg.c_str());
+ 	}
+ 
+-	// Append structured fatal header for Launcher DiagnosticsTab when running under nx.rpg
+-	if (lvl == LogLevel::Error && !nxrpg_log_path.empty()) {
++	// nx.rpg: mirror EVERY level into the per-game log (open-append-close).
++	// Previously only Error lines landed there, so a game dying without an
++	// Output::Error produced a 0-byte log. Keep the structured [FATAL] line
++	// for the Launcher DiagnosticsTab.
++	if (!nxrpg_log_path.empty()) {
+ 		FILE* fp = std::fopen(nxrpg_log_path.c_str(), "ab");
+ 		if (fp) {
+-			std::fprintf(fp, "[nx.rpg][FATAL][core=easyrpg][game=%s][code=PLAYER_ERR] %s\n",
+-				nxrpg_game_id.empty() ? "unknown" : nxrpg_game_id.c_str(),
+-				msg.c_str());
++			if (lvl == LogLevel::Error) {
++				std::fprintf(fp, "[nx.rpg][FATAL][core=easyrpg][game=%s][code=PLAYER_ERR] %s\n",
++					nxrpg_game_id.empty() ? "unknown" : nxrpg_game_id.c_str(),
++					msg.c_str());
++			} else {
++				std::fprintf(fp, "[%s] %s\n", prefix.c_str(), msg.c_str());
++			}
+ 			std::fflush(fp);
+ 			fsync(fileno(fp));
+ 			std::fclose(fp);
+@@ -320,6 +390,12 @@ void SwitchExit() {
+ }
+ 
+ int main(int argc, char* argv[]) {
++#ifdef PLAYER_NINTENDO
++	nxrpg_eboot_init();
++	nxrpg_eboot("[boot] easyrpg main() entry argc=%d", argc);
++	for (int i = 0; i < argc; ++i)
++		nxrpg_eboot("[boot] argv[%d]=%s", i, argv[i]);
++#endif
+ 	std::vector<std::string> raw_args(argv, argv + argc);
+ 	std::vector<std::string> args;
+ 	std::string manifest_path;
+@@ -356,9 +432,19 @@ int main(int argc, char* argv[]) {
+ 			socketExit();
+ 	}
+ 
++#ifdef PLAYER_NINTENDO
++	Result nxrpg_romfs_rc = romfsInit();
++	nxrpg_eboot("[boot] romfsInit rc=0x%x", nxrpg_romfs_rc);
++#else
+ 	romfsInit();
++#endif
+ 
+ 	bool has_manifest = !manifest_path.empty() && LoadNxRpgManifest(manifest_path, args);
++#ifdef PLAYER_NINTENDO
++	nxrpg_eboot("[boot] manifest=%d args=%d", (int)has_manifest, (int)args.size());
++	for (size_t i = 0; i < args.size(); ++i)
++		nxrpg_eboot("[boot] arg[%d]=%s", (int)i, args[i].c_str());
++#endif
+ 
+ 	// Check if romfs has some files inside or not (skipped when launched by nx.rpg)
+ 	if(!has_manifest && ::access("romfs:/RPG_RT.lmt", F_OK) == 0) {
+@@ -381,8 +467,17 @@ int main(int argc, char* argv[]) {
+ 	atexit(SwitchExit);
+ 
+ 	// Run Player
++#ifdef PLAYER_NINTENDO
++	nxrpg_eboot("[boot] Player::Init...");
++#endif
+ 	Player::Init(std::move(args));
++#ifdef PLAYER_NINTENDO
++	nxrpg_eboot("[boot] Player::Init ok, entering Run()");
++#endif
+ 	Player::Run();
++#ifdef PLAYER_NINTENDO
++	nxrpg_eboot("[boot] Player::Run exited (code=%d)", Player::exit_code);
++#endif
+ 
+ 	// Close
+ 	return Player::exit_code;

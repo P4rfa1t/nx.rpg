@@ -237,6 +237,33 @@ describe('CaseInsensitiveVfsImpl, IsolatedSaveStorageImpl & NwjsSandboxShimImpl'
     }
   });
 
+  it('delivers script errors with the element target and loads plugins before onload', async () => {
+    const mem = new MemoryRuntimeFs();
+    const manifest = makeManifest();
+    const root = manifest.game.contentRoot;
+    const put = (path: string, text: string) => mem.writeFileSync(`${root}/${path}`, new TextEncoder().encode(text));
+    put('index.html', '<script src="js/main.js"></script>');
+    put('js/plugin.js', 'globalThis.__pluginLoaded = true;');
+    put('js/main.js', `
+      const plugin = document.createElement('script');
+      plugin.src = 'js/plugin.js';
+      document.body.appendChild(plugin);
+      const missing = document.createElement('script');
+      missing.src = 'js/missing.js';
+      missing._url = missing.src;
+      missing.onerror = e => { globalThis.__missingUrl = e.target._url; };
+      document.body.appendChild(missing);
+      window.onload = () => { globalThis.__loadedBeforeOnload = globalThis.__pluginLoaded; };
+    `);
+    const vfs = new CaseInsensitiveVfsImpl(new RpgmAssetDecryptorImpl(), mem);
+    await vfs.buildIndex(root);
+    const dom = new DomShimControllerImpl(vfs);
+    dom.install(manifest);
+    await dom.evaluateIndexHtmlScripts('index.html');
+    expect((globalThis as any).__loadedBeforeOnload).toBe(true);
+    expect((globalThis as any).__missingUrl).toBe('js/missing.js');
+  });
+
   it('detects L+R+PLUS exit combo accurately', () => {
     const buttons = Array.from({ length: 16 }, () => ({ pressed: false }));
     buttons[6].pressed = true; // L
