@@ -155,10 +155,10 @@ jobs:
       - name: Build nx.rpg.nro
         run: bash scripts/build-launcher-switch.sh
 
-      - name: Upload nx.rpg.nro (staged for package job)
+      - name: Upload nx.rpg.nro
         uses: actions/upload-artifact@v7
         with:
-          name: stage-launcher
+          name: nx-rpg-launcher-nro
           path: sdcard/switch/nx.rpg/nx.rpg.nro
           retention-days: 1
 
@@ -279,10 +279,10 @@ jobs:
       - name: Build easyrpg.nro
         run: bash scripts/build-easyrpg-switch.sh
 
-      - name: Upload easyrpg.nro (staged for package job)
+      - name: Upload easyrpg.nro
         uses: actions/upload-artifact@v7
         with:
-          name: stage-cores
+          name: easyrpg-core
           path: sdcard/switch/nx.rpg/cores/easyrpg.nro
           retention-days: 1
 
@@ -309,10 +309,10 @@ jobs:
       - name: Build nxjs-mvz.nro (patched runtime + shim + fat NRO)
         run: bash scripts/build-nxjs-mvz-switch.sh
 
-      - name: Upload nxjs-mvz.nro (staged for package job)
+      - name: Upload nxjs-mvz.nro
         uses: actions/upload-artifact@v7
         with:
-          name: stage-cores
+          name: nxjs-mvz-core
           path: sdcard/switch/nx.rpg/cores/nxjs-mvz.nro
           retention-days: 1
 
@@ -344,10 +344,10 @@ jobs:
       - name: Build mkxp-z.nro
         run: bash scripts/build-mkxp-z-switch.sh
 
-      - name: Upload mkxp-z.nro (staged for package job)
+      - name: Upload mkxp-z.nro
         uses: actions/upload-artifact@v7
         with:
-          name: stage-cores
+          name: mkxp-z-core
           path: sdcard/switch/nx.rpg/cores/mkxp-z.nro
           retention-days: 1
 
@@ -358,16 +358,16 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Package nx-rpg-launcher (single zip)
+      - name: Download launcher NRO
         uses: actions/download-artifact@v8
         with:
-          name: stage-launcher
+          name: nx-rpg-launcher-nro
           path: pkg-launcher/switch/nx.rpg
 
-      - name: Package nx-rpg-cores (merged 3-core zip)
+      - name: Download the three core NROs
         uses: actions/download-artifact@v8
         with:
-          pattern: stage-cores
+          pattern: '*-core'
           merge-multiple: true
           path: pkg-cores/switch/nx.rpg/cores
 
@@ -406,10 +406,16 @@ jobs:
       - name: Zip packages
         run: |
           set -euo pipefail
-          VERSION="${GITHUB_REF_NAME#v}"
-          cd pkg-launcher && zip -qr ../"nx.rpg-v${VERSION}-launcher.zip" switch && cd ..
-          cd pkg-cores && zip -qr ../"nx.rpg-v${VERSION}-cores.zip" switch && cd ..
-          sha256sum nx.rpg-v"${VERSION}"-launcher.zip nx.rpg-v"${VERSION}"-cores.zip
+          if [[ "$GITHUB_REF_NAME" == v* ]]; then
+            LZIP="nx.rpg-${GITHUB_REF_NAME}-launcher.zip"
+            CZIP="nx.rpg-${GITHUB_REF_NAME}-cores.zip"
+          else
+            LZIP="nx.rpg-launcher.zip"
+            CZIP="nx.rpg-cores.zip"
+          fi
+          cd pkg-launcher && zip -qr "../$LZIP" switch && cd ..
+          cd pkg-cores && zip -qr "../$CZIP" switch && cd ..
+          sha256sum "$LZIP" "$CZIP"
 
       - name: Assemble GPL corresponding-source archive
         if: startsWith(github.ref, 'refs/tags/v')
@@ -436,13 +442,13 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: nx-rpg-launcher
-          path: nx.rpg-v*-launcher.zip
+          path: nx.rpg*launcher.zip
 
       - name: Upload cores zip artifact
         uses: actions/upload-artifact@v7
         with:
           name: nx-rpg-cores
-          path: nx.rpg-v*-cores.zip
+          path: nx.rpg*cores.zip
 
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
