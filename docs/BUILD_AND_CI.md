@@ -58,8 +58,17 @@ Switch `hbmenu` 与 Horizon OS 对 `.nro` 包装元数据有严格格式要求�
   - 工作流：[.github/workflows/validate.yml](../.github/workflows/validate.yml)
   - 执行 `python3 scripts/validate-repo.py`（全量 JSON Schema 结构与枚举校验、锁文件 SHA 校验、补丁队列引用校验）与 `bash -n scripts/*.sh`。
   - Phase 1 起追加宿主机 CMake `ctest`（跑 7 代引擎识别器与配置合并器单元测试）。
-- **Stage B — 容器化 Switch 交叉编译矩阵（Phase 1~3 分核心点亮）**：
-  - 基于官方 `devkitpro/devkita64` 容器镜像，拆分为 4 个并行且带 ccache / portlibs 缓存的独立 Job：`build-launcher`、`build-core-easyrpg`、`build-core-nxjs-mvz`、`build-core-mkxp-z`。
-- **Stage C — 发布打包与 GPL 合规源码归档（Tag `v*` 触发）**：
-  1. `nx.rpg-vX.Y.Z-switch.zip`：解压即用的 `switch/nx.rpg/` 目录结构（含 `nx.rpg.nro`、`cores/*.nro`、`config/global.example.json`、`LICENSE`、`THIRD_PARTY_LICENSES.md`）。
-  2. `nx.rpg-vX.Y.Z-gpl-sources.tar.zst`：自动归档本次构建实际使用的 `upstreams.lock.json`、对应版本的 `EasyRPG/Player`（GPL-3.0）与 `mkxp-z` + `Ruby`（GPL-2.0）源码快照及 `cores/*/patches/` 完整补丁集，100% 履行 GPL 二进制分发附带完整对应源码（Corresponding Source）的义务。
+- **Stage B — 按目标拆分的增量编译工作流（每次 Push / PR 按路径过滤触发）**：
+  - 四个独立工作流各自只编译自己的 NRO 并上传 Artifact，互不阻塞、互不浪费算力：
+    | 工作流 | 触发路径 | 产物 |
+    | :--- | :--- | :--- |
+    | [build-launcher.yml](../.github/workflows/build-launcher.yml) | `common/**`、`launcher/**` | `nx-rpg-launcher` |
+    | [build-easyrpg.yml](../.github/workflows/build-easyrpg.yml) | `cores/easyrpg/**` | `easyrpg-core` |
+    | [build-nxjs-mvz.yml](../.github/workflows/build-nxjs-mvz.yml) | `cores/nxjs-mvz/**` | `nxjs-mvz-core` |
+    | [build-mkxp-z.yml](../.github/workflows/build-mkxp-z.yml) | `cores/mkxp-z/**` | `mkxp-z-core` |
+  - 例如只改 shim TypeScript 时，其余三个 workflow 完全不会运行。
+- **Stage C — 发布打包与 GPL 合规源码归档（[release.yml](../.github/workflows/release.yml)，Tag `v*` 或手动触发）**：
+  1. `nx.rpg-vX.Y.Z-launcher.zip`：`switch/nx.rpg/` 目录结构的前端包（含 `nx.rpg.nro`、`config/global.example.json`、`LICENSE`、`THIRD_PARTY_LICENSES.md`、部署说明 README.txt）。
+  2. `nx.rpg-vX.Y.Z-cores.zip`：三个核心 NRO 合集包（`cores/easyrpg.nro`、`cores/nxjs-mvz.nro`、`cores/mkxp-z.nro` + 说明）。
+  3. `nx.rpg-vX.Y.Z-gpl-sources.tar.zst`：自动归档本次构建实际使用的 `upstreams.lock.json`、对应版本的 `EasyRPG/Player`（GPL-3.0）与 `mkxp-z` + `Ruby`（GPL-2.0）源码快照及 `cores/*/patches/` 完整补丁集，100% 履行 GPL 二进制分发附带完整对应源码（Corresponding Source）的义务。
+  4. 以上三个文件经 `softprops/action-gh-release` 自动发布到 GitHub Releases。
