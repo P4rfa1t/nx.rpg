@@ -28,11 +28,9 @@
 
 ## 📦 安装（玩家）
 
-1. 从 [Actions](https://github.com/P4rfa1t/nx.rpg/actions/workflows/build.yml) 最新一次成功运行的 Artifacts 下载四个构建产物（或从 Release 页下载打包版）：
-   - `nx-rpg-launcher` → `nx.rpg.nro`
-   - `easyrpg-core` → `easyrpg.nro`
-   - `nxjs-mvz-core` → `nxjs-mvz.nro`
-   - `mkxp-z-core` → `mkxp-z.nro`
+1. 从 [Actions](https://github.com/P4rfa1t/nx.rpg/actions/workflows/build.yml) 最新一次成功运行的 Artifacts 下载两个打包压缩包：
+   - `nx-rpg-launcher` → 前端 `nx.rpg.nro`（含 SD 卡目录结构与说明）
+   - `nx-rpg-cores` → 三个核心 `easyrpg.nro` / `nxjs-mvz.nro` / `mkxp-z.nro`（合集一个包）
 2. 按下述结构放入 SD 卡（NRO 放对应目录，其余目录会自动生成示例）：
 
    ```text

@@ -148,11 +148,12 @@ jobs:
       - name: Build nx.rpg.nro
         run: bash scripts/build-launcher-switch.sh
 
-      - name: Upload nx.rpg.nro
-        uses: actions/upload-artifact@v4
+      - name: Upload nx.rpg.nro (staged for package job)
+        uses: actions/upload-artifact@v7
         with:
-          name: nx-rpg-launcher
+          name: stage-launcher
           path: sdcard/switch/nx.rpg/nx.rpg.nro
+          retention-days: 1
 
   easyrpg:
     name: easyrpg.nro (RM2k / RM2k3)
@@ -271,11 +272,12 @@ jobs:
       - name: Build easyrpg.nro
         run: bash scripts/build-easyrpg-switch.sh
 
-      - name: Upload easyrpg.nro
-        uses: actions/upload-artifact@v4
+      - name: Upload easyrpg.nro (staged for package job)
+        uses: actions/upload-artifact@v7
         with:
-          name: easyrpg-core
+          name: stage-cores
           path: sdcard/switch/nx.rpg/cores/easyrpg.nro
+          retention-days: 1
 
   nxjs-mvz:
     name: nxjs-mvz.nro (RM MV / MZ)
@@ -300,11 +302,12 @@ jobs:
       - name: Build nxjs-mvz.nro (patched runtime + shim + fat NRO)
         run: bash scripts/build-nxjs-mvz-switch.sh
 
-      - name: Upload nxjs-mvz.nro
-        uses: actions/upload-artifact@v4
+      - name: Upload nxjs-mvz.nro (staged for package job)
+        uses: actions/upload-artifact@v7
         with:
-          name: nxjs-mvz-core
+          name: stage-cores
           path: sdcard/switch/nx.rpg/cores/nxjs-mvz.nro
+          retention-days: 1
 
   mkxp-z:
     name: mkxp-z.nro (RMXP / VX / VXAce)
@@ -334,8 +337,79 @@ jobs:
       - name: Build mkxp-z.nro
         run: bash scripts/build-mkxp-z-switch.sh
 
-      - name: Upload mkxp-z.nro
-        uses: actions/upload-artifact@v4
+      - name: Upload mkxp-z.nro (staged for package job)
+        uses: actions/upload-artifact@v7
         with:
-          name: mkxp-z-core
+          name: stage-cores
           path: sdcard/switch/nx.rpg/cores/mkxp-z.nro
+          retention-days: 1
+
+  package:
+    name: Package artifacts (launcher / cores zips)
+    runs-on: ubuntu-latest
+    needs: [launcher, easyrpg, nxjs-mvz, mkxp-z]
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Package nx-rpg-launcher (single zip)
+        uses: actions/download-artifact@v8
+        with:
+          name: stage-launcher
+          path: pkg-launcher/switch/nx.rpg
+
+      - name: Package nx-rpg-cores (merged 3-core zip)
+        uses: actions/download-artifact@v8
+        with:
+          pattern: stage-cores
+          merge-multiple: true
+          path: pkg-cores/switch/nx.rpg/cores
+
+      - name: Add SD layout README to both zips
+        run: |
+          set -euo pipefail
+          mkdir -p pkg-launcher/switch/nx.rpg/cores
+          cp sdcard/switch/nx.rpg/config/global.example.json pkg-launcher/switch/nx.rpg/config/global.example.json 2>/dev/null || true
+          for d in games saves rtp fonts config runtime cache; do
+            mkdir -p pkg-cores/switch/nx.rpg/$d pkg-launcher/switch/nx.rpg/$d
+          done
+          {
+            echo "nx.rpg launcher package"
+            echo "======================="
+            echo "Copy the whole 'switch/nx.rpg' folder to the ROOT of your SD card,"
+            echo "then download the 'nx-rpg-cores' artifact and copy its three .nro"
+            echo "files into sdcard:/switch/nx.rpg/cores/."
+            echo ""
+            echo "Launch nx.rpg.nro while holding R (Title Takeover) for full RAM."
+          } > pkg-launcher/switch/nx.rpg/README.txt
+          {
+            echo "nx.rpg core package"
+            echo "==================="
+            echo "Copy the three .nro files into sdcard:/switch/nx.rpg/cores/ on your"
+            echo "SD card (merge with the launcher package from the nx-rpg-launcher"
+            echo "artifact)."
+            echo ""
+            echo "  easyrpg.nro   -> RPG Maker 2000 / 2003"
+            echo "  nxjs-mvz.nro  -> RPG Maker MV / MZ"
+            echo "  mkxp-z.nro    -> RPG Maker XP / VX / VX Ace"
+          } > pkg-cores/switch/nx.rpg/cores/README.txt
+          echo "launcher package:"; find pkg-launcher -type f
+          echo "cores package:"; find pkg-cores -type f
+
+      - name: Zip packages
+        run: |
+          set -euo pipefail
+          cd pkg-launcher && zip -qr ../nx-rpg-launcher.zip switch && cd ..
+          cd pkg-cores && zip -qr ../nx-rpg-cores.zip switch && cd ..
+          sha256sum nx-rpg-launcher.zip nx-rpg-cores.zip
+
+      - name: Upload nx-rpg-launcher.zip
+        uses: actions/upload-artifact@v7
+        with:
+          name: nx-rpg-launcher
+          path: nx-rpg-launcher.zip
+
+      - name: Upload nx-rpg-cores.zip
+        uses: actions/upload-artifact@v7
+        with:
+          name: nx-rpg-cores
+          path: nx-rpg-cores.zip
