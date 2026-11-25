@@ -1,0 +1,64 @@
+name: Build mkxp-z Core NRO
+
+# Builds ONLY cores/mkxp-z.nro (RMXP / VX / VXAce) — triggers on mkxp-z patch,
+# cross config, preload, or build-script changes only.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'cores/mkxp-z/**'
+      - 'scripts/bootstrap-cores.sh'
+      - 'scripts/apply-patches.sh'
+      - 'scripts/build-mkxp-z-switch.sh'
+      - '.github/workflows/build-mkxp-z.yml'
+  pull_request:
+    paths:
+      - 'cores/mkxp-z/**'
+      - 'scripts/bootstrap-cores.sh'
+      - 'scripts/apply-patches.sh'
+      - 'scripts/build-mkxp-z-switch.sh'
+      - '.github/workflows/build-mkxp-z.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  mkxp-z:
+    name: mkxp-z.nro (RMXP / VX / VXAce)
+    runs-on: ubuntu-latest
+    container: devkitpro/devkita64:latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Meson + host Ruby + bison
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq --no-install-recommends ruby-full bison curl python3-pip python3-setuptools >/dev/null
+          pip3 install --quiet --break-system-packages "meson>=1.5.0" ninja
+
+      - name: Bootstrap & patch mkxp-z
+        run: |
+          bash scripts/bootstrap-cores.sh mkxp-z
+          bash scripts/apply-patches.sh mkxp-z
+
+      - name: Pre-cache Ruby 3.1.3 tarball (wrap source_hash verified on extraction)
+        run: |
+          mkdir -p third_party/mkxp-z/subprojects/packagecache
+          curl -fsSL -o third_party/mkxp-z/subprojects/packagecache/ruby-3_1_3.tar.gz \
+            https://github.com/ruby/ruby/archive/refs/tags/v3_1_3.tar.gz
+          echo "c87fc4789233ad90cb1b865e547a257d3c15b3e8e6918b153197e1ed4e47226b  third_party/mkxp-z/subprojects/packagecache/ruby-3_1_3.tar.gz" | sha256sum -c -
+
+      - name: Build mkxp-z.nro
+        run: bash scripts/build-mkxp-z-switch.sh
+
+      - name: Upload mkxp-z.nro
+        uses: actions/upload-artifact@v7
+        with:
+          name: mkxp-z-core
+          path: sdcard/switch/nx.rpg/cores/mkxp-z.nro

@@ -28,9 +28,9 @@
 
 ## 📦 安装（玩家）
 
-1. 从 [Actions](https://github.com/P4rfa1t/nx.rpg/actions/workflows/build.yml) 最新一次成功运行的 Artifacts 下载两个打包压缩包：
-   - `nx-rpg-launcher` → 前端 `nx.rpg.nro`（含 SD 卡目录结构与说明）
-   - `nx-rpg-cores` → 三个核心 `easyrpg.nro` / `nxjs-mvz.nro` / `mkxp-z.nro`（合集一个包）
+1. 从 [Releases](https://github.com/P4rfa1t/nx.rpg/releases) 下载最新版本的两个压缩包（或从 [Actions](https://github.com/P4rfa1t/nx.rpg/actions) 页面的 Artifacts 下载）：
+   - `nx.rpg-v*-launcher.zip` → 前端 `nx.rpg.nro`（含 SD 卡目录结构与说明）
+   - `nx.rpg-v*-cores.zip` → 三个核心 `easyrpg.nro` / `nxjs-mvz.nro` / `mkxp-z.nro`（合集一个包）
 2. 按下述结构放入 SD 卡（NRO 放对应目录，其余目录会自动生成示例）：
 
    ```text
@@ -83,7 +83,9 @@ docker run --rm -v "$(pwd):/work" -w /work --dns 223.5.5.5 nxrpg-devkita64:lates
 docker run --rm -v "$(pwd):/work" -w /work --dns 223.5.5.5 nxrpg-nxjs-build:latest \
   bash -c "bash scripts/build-nxjs-mvz-switch.sh"
 
-# 4b. 或者直接推到 main 分支，GitHub Actions 四作业并行构建并上传 Artifacts
+# 4b. 或者直接推 main —— 每个构建目标有独立 workflow（按路径过滤，只重编译改动的目标）：
+#      build-launcher.yml / build-easyrpg.yml / build-nxjs-mvz.yml / build-mkxp-z.yml
+#      打 v* tag 会触发 release.yml：全量构建 + 两个 zip + GPL 源码归档 → GitHub Releases
 ```
 
 构建脚本特性：每次从干净上游树按序重放补丁队列（`git reset --hard` + `git clean`），产物直接落到 `sdcard/switch/nx.rpg/` 对应位置。工具链镜像、Meson 交叉文件与已知坑位清单见 [docs/BUILD_AND_CI.md](docs/BUILD_AND_CI.md)。

@@ -1,0 +1,148 @@
+name: Build EasyRPG Core NRO
+
+# Builds ONLY cores/easyrpg.nro (RM2k / RM2k3) — triggers on easyrpg patch or
+# build-script changes only.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'cores/easyrpg/**'
+      - 'scripts/bootstrap-cores.sh'
+      - 'scripts/apply-patches.sh'
+      - 'scripts/build-easyrpg-switch.sh'
+      - '.github/workflows/build-easyrpg.yml'
+  pull_request:
+    paths:
+      - 'cores/easyrpg/**'
+      - 'scripts/bootstrap-cores.sh'
+      - 'scripts/apply-patches.sh'
+      - 'scripts/build-easyrpg-switch.sh'
+      - '.github/workflows/build-easyrpg.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  easyrpg:
+    name: easyrpg.nro (RM2k / RM2k3)
+    runs-on: ubuntu-latest
+    container: devkitpro/devkita64:latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Build toolchain dependencies (fmt/json/inih/pixman/ICU/liblcf)
+        working-directory: /tmp
+        run: |
+          set -euo pipefail
+          export DEVKITPRO=/opt/devkitpro
+          export PATH="$DEVKITPRO/devkitA64/bin:$DEVKITPRO/tools/bin:$PATH"
+          PREFIX="$DEVKITPRO/portlibs/switch"
+          NPROC="$(nproc)"
+
+          apt-get update -qq
+          apt-get install -y -qq --no-install-recommends curl unzip bison python3-pip python3-setuptools >/dev/null
+
+          ARCH_FLAGS="-march=armv8-a+crc+crypto -mtune=cortex-a57 -mtp=soft -fPIC -ftls-model=local-exec"
+          CROSS_CFLAGS="-O2 -g0 $ARCH_FLAGS -D__SWITCH__ -I$PREFIX/include"
+
+          mkdir -p deps && cd deps
+
+          pip3 install --quiet --break-system-packages "meson>=1.5.0" ninja
+
+          {
+            echo '[binaries]'
+            echo "c = 'aarch64-none-elf-gcc'"
+            echo "cpp = 'aarch64-none-elf-g++'"
+            echo "ar = 'aarch64-none-elf-gcc-ar'"
+            echo "strip = 'aarch64-none-elf-strip'"
+            echo "pkg-config = 'aarch64-none-elf-pkg-config'"
+            echo ''
+            echo '[built-in options]'
+            echo "c_args = ['-O2', '-g0', '-march=armv8-a+crc+crypto', '-mtune=cortex-a57', '-mtp=soft', '-fPIC', '-D__SWITCH__']"
+            echo "cpp_args = ['-O2', '-g0', '-march=armv8-a+crc+crypto', '-mtune=cortex-a57', '-mtp=soft', '-fPIC', '-D__SWITCH__']"
+            echo "c_link_args = ['-march=armv8-a+crc+crypto', '-specs=$DEVKITPRO/libnx/switch.specs', '-L$PREFIX/lib', '-L$DEVKITPRO/libnx/lib', '-lnx']"
+            echo ''
+            echo '[host_machine]'
+            echo "system = 'horizon'"
+            echo "cpu_family = 'aarch64'"
+            echo "cpu = 'cortex-a57'"
+            echo "endian = 'little'"
+          } > meson-switch.txt
+
+          curl -fsSLO https://github.com/fmtlib/fmt/releases/download/12.1.0/fmt-12.1.0.zip
+          unzip -q fmt-12.1.0.zip
+          cmake -S fmt-12.1.0 -B fmt-build -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE="$DEVKITPRO/cmake/Switch.cmake" \
+            -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$PREFIX" \
+            -DBUILD_SHARED_LIBS=OFF -DFMT_DOC=OFF -DFMT_TEST=OFF
+          cmake --build fmt-build -j"$NPROC" && cmake --install fmt-build
+
+          curl -fsSLO https://github.com/nlohmann/json/archive/v3.12.0.tar.gz
+          tar xf v3.12.0.tar.gz
+          perl -pi -e "s/CMAKE_INSTALL_DATADIR/CMAKE_INSTALL_LIBDIR/" json-3.12.0/CMakeLists.txt
+          cmake -S json-3.12.0 -B json-build -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE="$DEVKITPRO/cmake/Switch.cmake" \
+            -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$PREFIX" \
+            -DJSON_BuildTests=OFF
+          cmake --build json-build -j"$NPROC" && cmake --install json-build
+
+          curl -fsSLO https://github.com/benhoyt/inih/archive/refs/tags/r62.tar.gz
+          tar xf r62.tar.gz
+          PKG_CONFIG_LIBDIR="$PREFIX/lib/pkgconfig" meson setup inih-build inih-r62 \
+            --cross-file meson-switch.txt \
+            --prefix="$PREFIX" --libdir=lib --buildtype=release \
+            -Ddefault_library=static -Dtests=false
+          meson compile -C inih-build -j"$NPROC" && meson install -C inih-build
+
+          curl -fsSLO https://cairographics.org/releases/pixman-0.46.4.tar.gz
+          tar xf pixman-0.46.4.tar.gz
+          PKG_CONFIG_LIBDIR="$PREFIX/lib/pkgconfig" meson setup pixman-build pixman-0.46.4 \
+            --cross-file meson-switch.txt \
+            --prefix="$PREFIX" --libdir=lib --buildtype=release -Ddefault_library=static \
+            -Dtests=disabled -demos=disabled -Dlibpng=disabled
+          meson compile -C pixman-build -j"$NPROC" && meson install -C pixman-build
+
+          # ICU (native + cross) for liblcf
+          curl -fsSLO https://github.com/unicode-org/icu/releases/download/release-78.3/icu4c-78.3-sources.tgz
+          tar xf icu4c-78.3-sources.tgz
+          chmod +x icu/source/configure
+          cp icu/source/config/mh-linux icu/source/config/mh-unknown
+          perl -pi -e "s/SMALL_BUFFER_MAX_SIZE 512/SMALL_BUFFER_MAX_SIZE 2048/" icu/source/tools/toolutil/pkg_genc.h
+          ICU_ARGS="--enable-strict=no --disable-tests --disable-samples --disable-dyload --disable-extras --disable-icuio --with-data-packaging=static --disable-layout --disable-layoutex --enable-draft=no"
+          mkdir -p icu-native icu-cross
+          (cd icu-native && ../icu/source/configure --enable-static --disable-shared $ICU_ARGS > /dev/null && make -j"$NPROC" > /dev/null)
+          (cd icu-cross && \
+            CC=aarch64-none-elf-gcc CXX=aarch64-none-elf-g++ \
+            CFLAGS="$CROSS_CFLAGS" CXXFLAGS="$CROSS_CFLAGS" \
+            LDFLAGS="-L$PREFIX/lib -L$DEVKITPRO/libnx/lib" LIBS="-lnx" \
+            ../icu/source/configure --enable-static --disable-shared --prefix="$PREFIX" \
+              --host=aarch64-none-elf --with-cross-build=/tmp/deps/icu-native --disable-tools $ICU_ARGS > /dev/null && \
+            make -j"$NPROC" > /dev/null && make install > /dev/null)
+
+          git clone --depth=1 https://github.com/EasyRPG/liblcf.git
+          cmake -S liblcf -B liblcf-build -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE="$DEVKITPRO/cmake/Switch.cmake" \
+            -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$PREFIX" \
+            -DBUILD_SHARED_LIBS=OFF -DLIBLCF_UPDATE_MIMEDB=OFF \
+            -DLIBLCF_ENABLE_TOOLS=OFF -DLIBLCF_ENABLE_TESTS=OFF
+          cmake --build liblcf-build -j"$NPROC" && cmake --install liblcf-build
+
+      - name: Bootstrap & patch EasyRPG Player
+        run: |
+          bash scripts/bootstrap-cores.sh easyrpg
+          bash scripts/apply-patches.sh easyrpg
+
+      - name: Build easyrpg.nro
+        run: bash scripts/build-easyrpg-switch.sh
+
+      - name: Upload easyrpg.nro
+        uses: actions/upload-artifact@v7
+        with:
+          name: easyrpg-core
+          path: sdcard/switch/nx.rpg/cores/easyrpg.nro

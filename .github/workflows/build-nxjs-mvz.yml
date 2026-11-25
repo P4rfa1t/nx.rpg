@@ -1,0 +1,59 @@
+name: Build nxjs-mvz Core NRO
+
+# Builds ONLY cores/nxjs-mvz.nro (RM MV / MZ) — triggers on shim, patch, or
+# build-script changes only.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'cores/nxjs-mvz/**'
+      - 'scripts/bootstrap-cores.sh'
+      - 'scripts/apply-patches.sh'
+      - 'scripts/build-nxjs-mvz-switch.sh'
+      - '.github/workflows/build-nxjs-mvz.yml'
+  pull_request:
+    paths:
+      - 'cores/nxjs-mvz/**'
+      - 'scripts/bootstrap-cores.sh'
+      - 'scripts/apply-patches.sh'
+      - 'scripts/build-nxjs-mvz-switch.sh'
+      - '.github/workflows/build-nxjs-mvz.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  nxjs-mvz:
+    name: nxjs-mvz.nro (RM MV / MZ)
+    runs-on: ubuntu-latest
+    # switch-v8 + Skia toolchain lives in TooTallNate's pacman-packages image;
+    # Node 22 + pnpm are layered on top at step 1.
+    container:
+      image: ghcr.io/tootallnate/pacman-packages@sha256:92880d77878639768fe3696800104d68de1dfec65802bf7915689dd7bd718e53
+      options: --user root
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Node 22 + pnpm
+        run: |
+          set -euo pipefail
+          curl -fsSL https://nodejs.org/dist/v22.11.0/node-v22.11.0-linux-x64.tar.xz \
+            -o /tmp/node.tar.xz
+          tar -xJf /tmp/node.tar.xz -C /usr/local --strip-components=1
+          npm install -g pnpm@9
+          node --version && pnpm --version
+
+      - name: Build nxjs-mvz.nro (patched runtime + shim + fat NRO)
+        run: bash scripts/build-nxjs-mvz-switch.sh
+
+      - name: Upload nxjs-mvz.nro
+        uses: actions/upload-artifact@v7
+        with:
+          name: nxjs-mvz-core
+          path: sdcard/switch/nx.rpg/cores/nxjs-mvz.nro

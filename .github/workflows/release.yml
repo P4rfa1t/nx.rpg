@@ -1,7 +1,14 @@
-name: Build Switch NROs
+name: Release Switch NROs
+
+# Full 4-target build producing the two player-facing zips plus the GPL
+# corresponding-source archive, published as a GitHub Release.
+# Triggered by version tags (v*) or manually. Day-to-day per-target builds
+# live in build-launcher.yml / build-easyrpg.yml / build-nxjs-mvz.yml /
+# build-mkxp-z.yml with path filters so only touched cores rebuild.
 
 on:
   push:
+    tags: ['v*']
     branches: [main]
     paths:
       - 'common/**'
@@ -9,7 +16,7 @@ on:
       - 'cores/**'
       - 'scripts/**'
       - 'assets/**'
-      - '.github/workflows/build.yml'
+      - '.github/workflows/release.yml'
   pull_request:
     paths:
       - 'common/**'
@@ -17,11 +24,11 @@ on:
       - 'cores/**'
       - 'scripts/**'
       - 'assets/**'
-      - '.github/workflows/build.yml'
+      - '.github/workflows/release.yml'
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 defaults:
   run:
@@ -369,6 +376,7 @@ jobs:
           set -euo pipefail
           mkdir -p pkg-launcher/switch/nx.rpg/cores
           cp sdcard/switch/nx.rpg/config/global.example.json pkg-launcher/switch/nx.rpg/config/global.example.json 2>/dev/null || true
+          cp LICENSE THIRD_PARTY_LICENSES.md pkg-launcher/switch/nx.rpg/ 2>/dev/null || true
           for d in games saves rtp fonts config runtime cache; do
             mkdir -p pkg-cores/switch/nx.rpg/$d pkg-launcher/switch/nx.rpg/$d
           done
@@ -398,18 +406,50 @@ jobs:
       - name: Zip packages
         run: |
           set -euo pipefail
-          cd pkg-launcher && zip -qr ../nx-rpg-launcher.zip switch && cd ..
-          cd pkg-cores && zip -qr ../nx-rpg-cores.zip switch && cd ..
-          sha256sum nx-rpg-launcher.zip nx-rpg-cores.zip
+          VERSION="${GITHUB_REF_NAME#v}"
+          cd pkg-launcher && zip -qr ../"nx.rpg-v${VERSION}-launcher.zip" switch && cd ..
+          cd pkg-cores && zip -qr ../"nx.rpg-v${VERSION}-cores.zip" switch && cd ..
+          sha256sum nx.rpg-v"${VERSION}"-launcher.zip nx.rpg-v"${VERSION}"-cores.zip
 
-      - name: Upload nx-rpg-launcher.zip
+      - name: Assemble GPL corresponding-source archive
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          bash scripts/bootstrap-cores.sh
+          mkdir -p "gpl-src/nx.rpg-v${VERSION}-gpl-sources"
+          DST="gpl-src/nx.rpg-v${VERSION}-gpl-sources"
+          cp third_party/upstreams.lock.json "$DST"/
+          cp -r cores/easyrpg/patches "$DST/easyrpg-patches"
+          cp -r cores/nxjs-mvz/patches  "$DST/nxjs-mvz-patches"
+          cp -r cores/mkxp-z/patches    "$DST/mkxp-z-patches"
+          cp -r cores/mkxp-z/ruby-switch "$DST/mkxp-z-ruby-switch" 2>/dev/null || true
+          # Full upstream source snapshots (GPL-3.0 EasyRPG, GPL-2.0 mkxp-z+Ruby; MIT nx.js included for completeness)
+          mkdir -p "$DST/EasyRPG-Player" "$DST/nx.js" "$DST/mkxp-z"
+          tar -C third_party/EasyRPG-Player --exclude=.git -cf - . | tar -C "$DST/EasyRPG-Player" -xf -
+          tar -C third_party/nx.js --exclude=.git --exclude=node_modules -cf - . | tar -C "$DST/nx.js" -xf -
+          tar -C third_party/mkxp-z --exclude=.git -cf - . | tar -C "$DST/mkxp-z" -xf -
+          cd gpl-src && tar --zstd -cf "../nx.rpg-v${VERSION}-gpl-sources.tar.zst" . && cd ..
+          du -h nx.rpg-v"${VERSION}"-gpl-sources.tar.zst
+
+      - name: Upload launcher zip artifact
         uses: actions/upload-artifact@v7
         with:
           name: nx-rpg-launcher
-          path: nx-rpg-launcher.zip
+          path: nx.rpg-v*-launcher.zip
 
-      - name: Upload nx-rpg-cores.zip
+      - name: Upload cores zip artifact
         uses: actions/upload-artifact@v7
         with:
           name: nx-rpg-cores
-          path: nx-rpg-cores.zip
+          path: nx.rpg-v*-cores.zip
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            nx.rpg-v*-launcher.zip
+            nx.rpg-v*-cores.zip
+            nx.rpg-v*-gpl-sources.tar.zst
+          generate_release_notes: true

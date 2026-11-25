@@ -66,6 +66,6 @@
 
 ## Phase 5：容器化矩阵 CI 与合规发布工程
 
-- [x] 上线基于 `devkitpro/devkita64` 的 GitHub Actions 四目标并行构建流水线（`.github/workflows/build.yml`，缓存待调优）
+- [x] 上线基于 `devkitpro/devkita64` 的 GitHub Actions 构建流水线（四目标独立 workflow：`build-launcher.yml` / `build-easyrpg.yml` / `build-nxjs-mvz.yml` / `build-mkxp-z.yml` 按路径过滤增量编译；`release.yml` 打 `v*` tag 产出双 zip + GPL 源码归档并发 Releases）
 - [ ] 实现一键打包脚本：同步产出 `nx.rpg-vX.Y.Z-switch.zip` 与满足 GPLv2/GPLv3 义务的 `nx.rpg-vX.Y.Z-gpl-sources.tar.zst`
 - [ ] 建立公开游戏兼容性数据库与标准反馈 Issue 模板
