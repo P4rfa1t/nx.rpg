@@ -25,7 +25,7 @@ class LauncherApp {
       std::uint64_t now_epoch = 0);
 
   /// Initializes libnx/romfs (on Switch), loads `global.json` + i18n, checks
-  /// `runtime/last_run.log` if `returned_from_core` is true, and mounts `RootFrame`.
+  /// `logs/games/<game_id>.log` if `returned_from_core` is true, and mounts `RootFrame`.
   int run(const BootContext& ctx);
 };
 

@@ -59,7 +59,7 @@
 ## Phase 4：全平台体验打磨与诊断中心
 
 - [x] 三大核心打通 Switch 原生 `swkbd` 系统软键盘（主角起名、密码输入直接支持中文拼音/日文假名）
-- [x] 完善 Borealis 前端 `DiagnosticsTab`：一键查看 `runtime/last_run.log` 崩溃摘要、5 代共享 RTP 完整性检测、CJK 字体巡检与孤立 `.tmp` 清理
+- [x] 完善 Borealis 前端 `DiagnosticsTab`：一键查看 `logs/games/<game_id>.log` 崩溃摘要、5 代共享 RTP 完整性检测、CJK 字体巡检与孤立 `.tmp` 清理
 - [x] 支持游戏封面缩略图缓存（含从加密包提取标题图缩略图）、收藏夹与游玩时长统计
 
 ---

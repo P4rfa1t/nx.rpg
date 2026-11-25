@@ -16,7 +16,7 @@
 - **实机验收发现并已修复（2026-11-25，commit f321479）**：
   1. **Horizon fsdev `rename()` 不覆盖已存在目标**（非 POSIX）：`write_file_atomic` 必须先 `fs::remove` 旧目标再 rename，否则 manifest/global.json/library.json 首次写入后全部失败（症状：launcher.log 反复 `failed to write launch manifest`、`last_game=` 永远为空）。
   2. **CPU 频率档新增 `system_default`（新默认值）**：核心完全不调用 `clkrst`，尊重系统 powerd 或用户自装超频 KIP；此前 boost 档退出时会把频率压回 1020 MHz，覆盖掉用户的超频设置。
-  3. **三个核心的完整运行日志已接入** `runtime/last_run.log`：EasyRPG 走上游 `--log-file` 追加；mkxp-z 通过 `freopen(stderr → logPath)` 镜像全部 `Debug()`/RGSS/SDL 输出并打 session start 横幅；nxjs shim 追加带 ISO 时间戳的 session/vfs/clean-exit/FATAL 行。
+  3. **三个核心的完整运行日志已接入** `logs/games/<game_id>.log`：EasyRPG 走上游 `--log-file` 追加；mkxp-z 通过 `freopen(stderr → logPath)` 镜像全部 `Debug()`/RGSS/SDL 输出并打 session start 横幅；nxjs shim 追加带 ISO 时间戳的 session/vfs/clean-exit/FATAL 行。
 - **当前宿主机环境情况**（`scripts/check-env.sh` 实测）：Windows 11 + Git Bash；已安装 `git`、`cmake`、`ninja`、`node`、`python`；尚未安装 `devkitPro`（`DEVKITPRO`、`aarch64-none-elf-gcc`、`elf2nro`）、`meson`、`pnpm`。
 
 ---

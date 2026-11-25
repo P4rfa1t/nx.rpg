@@ -79,4 +79,4 @@ RPG Maker 游戏常见的“输入勇者名字”、“输入宝箱密码/兑换
 ### `--from-core` 链式返回体验
 
 1. 核心退出回 `nx.rpg.nro --from-core` 时，前端读取 `config/global.json` 中的 `lastSelectedGameId`，直接从 `cache/library.json` 恢复列表并定位焦点到刚才游玩的游戏卡片。
-2. 若检测到 `runtime/last_run.log` 末尾存在 `[nx.rpg][FATAL]` 标记，自动在底部弹出非阻塞告警提示，按 `-` 键即可打开诊断页查看完整堆栈与修复建议（如“缺少 RM2003 RTP”、“建议将编码改为 GBK”或“请使用 Title Takeover 模式运行 MZ 游戏”）。
+2. 若检测到 `logs/games/<game_id>.log` 末尾存在 `[nx.rpg][FATAL]` 标记，自动在底部弹出非阻塞告警提示，按 `-` 键即可打开诊断页查看完整堆栈与修复建议（如“缺少 RM2003 RTP”、“建议将编码改为 GBK”或“请使用 Title Takeover 模式运行 MZ 游戏”）。

@@ -24,7 +24,7 @@ launcher/
 │       ├── root_frame.hpp                      # 主 TabFrame（全部游戏 / 最近游玩 / 环境自检 / 全局设置）
 │       ├── game_grid_tab.hpp                   # 封面墙与列表视图（支持按 7 代引擎筛选）
 │       ├── game_detail_activity.hpp            # 游戏详情页与单游戏覆写设置（编码/CPU超频/缩放/RTP/Win32Stub）
-│       └── diagnostics_tab.hpp                 # 最近运行崩溃日志查看器（读取 runtime/last_run.log）
+│       └── diagnostics_tab.hpp                 # 最近运行崩溃日志查看器（读取 logs/games/<game_id>.log）
 ├── resources/
 │   ├── i18n/                                   # 多语言资源包（zh-CN.json / en-US.json）
 │   └── xml/                                    # Borealis 声明式 XML 视图模板目录
