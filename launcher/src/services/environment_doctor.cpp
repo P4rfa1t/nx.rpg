@@ -173,6 +173,24 @@ std::vector<DiagnosticItem> EnvironmentDoctor::run_all_checks(
   return items;
 }
 
+std::size_t EnvironmentDoctor::count_orphaned_tmp_files(const fs::path& sd_root) {
+  std::size_t count = 0;
+  std::error_code ec;
+  for (const char* sub : {"config", "cache", "runtime", "saves"}) {
+    fs::path dir = sd_root / sub;
+    if (!fs::is_directory(dir, ec)) continue;
+    for (fs::recursive_directory_iterator it(dir, ec);
+         !ec && it != fs::recursive_directory_iterator();
+         it.increment(ec)) {
+      if (!it->is_regular_file(ec)) continue;
+      if (it->path().extension() == ".tmp") {
+        ++count;
+      }
+    }
+  }
+  return count;
+}
+
 std::size_t EnvironmentDoctor::cleanup_orphaned_tmp_files(const fs::path& sd_root) {
   std::size_t removed = 0;
   std::error_code ec;

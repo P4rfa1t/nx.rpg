@@ -39,6 +39,9 @@ class EnvironmentDoctor {
       MemoryExecutionMode memory_mode,
       const std::filesystem::path& sd_root);
 
+  /// Counts (without deleting) orphaned `*.tmp` files in config/cache/runtime/saves.
+  static std::size_t count_orphaned_tmp_files(const std::filesystem::path& sd_root);
+
   /// Removes orphaned `*.tmp` files left by crashed writes in config/cache/runtime/saves.
   static std::size_t cleanup_orphaned_tmp_files(const std::filesystem::path& sd_root);
 

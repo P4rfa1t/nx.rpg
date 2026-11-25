@@ -12,7 +12,8 @@
 namespace nxrpg::launcher::views {
 
 /// Displays `EnvironmentDoctor` checklist (Cores, RTPs, Fonts, Applet Mode, FAT32/exFAT)
-/// and renders the tail + `[nx.rpg][FATAL]` summary of `runtime/last_run.log`.
+/// as a single left-aligned column, and the tail + `[nx.rpg][FATAL]` summary of
+/// `runtime/last_run.log` and `runtime/launcher.log`.
 #ifdef NXRPG_HAS_BOREALIS
 class DiagnosticsTab : public brls::Box {
  public:

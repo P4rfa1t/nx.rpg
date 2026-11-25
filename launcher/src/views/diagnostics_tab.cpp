@@ -1,12 +1,29 @@
 #include "launcher/views/diagnostics_tab.hpp"
 
+#include <array>
 #include <filesystem>
+#include <string>
+#include <vector>
 
 #include "launcher/services/environment_doctor.hpp"
+#include "nxrpg/logger.hpp"
 
 namespace nxrpg::launcher::views {
 
 #ifdef NXRPG_HAS_BOREALIS
+
+namespace {
+
+const char* severity_prefix(DiagnosticItem::Severity s) {
+  switch (s) {
+    case DiagnosticItem::Severity::Ok: return "[OK]  ";
+    case DiagnosticItem::Severity::Warning: return "[WARN]";
+    case DiagnosticItem::Severity::Error: return "[ERR] ";
+  }
+  return "[?]   ";
+}
+
+}  // namespace
 
 DiagnosticsTab::DiagnosticsTab(BootContext ctx, std::shared_ptr<I18nService> i18n)
     : brls::Box(brls::Axis::COLUMN), ctx_(std::move(ctx)), i18n_(std::move(i18n)) {
@@ -37,32 +54,42 @@ void DiagnosticsTab::refresh() {
   header->setTitle(i18n_->translate("tabs.diagnostics", "Environment & Logs"));
   list_box_->addView(header);
 
-  auto* cleanup_btn = new brls::DetailCell();
-  cleanup_btn->setText(i18n_->translate("actions.cleanup_tmp", "Clean .tmp & Refresh"));
-  cleanup_btn->setDetailText("Removes orphaned *.tmp files across config/, cache/, runtime/, saves/");
-  cleanup_btn->registerClickAction([this](brls::View*) {
-    std::size_t n = EnvironmentDoctor::cleanup_orphaned_tmp_files(ctx_.sd_root);
-    brls::Application::notify("Cleaned " + std::to_string(n) + " orphaned .tmp file(s)");
-    refresh();
-    return true;
-  });
+  // Orphaned .tmp cleanup — plain label row (left column only)
+  auto* cleanup_btn = new brls::BooleanCell();
+  std::size_t orphaned = EnvironmentDoctor::count_orphaned_tmp_files(ctx_.sd_root);
+  cleanup_btn->init(
+      i18n_->translate("actions.cleanup_tmp", "Clean .tmp & Refresh"),
+      false,
+      [this](bool) {
+        std::size_t n = EnvironmentDoctor::cleanup_orphaned_tmp_files(ctx_.sd_root);
+        NXLOG_INFO("diag", "cleanup removed %zu orphaned .tmp file(s)", n);
+        brls::Application::notify(
+            i18n_->translate("diagnostics.tmp_cleaned", "Cleaned ") +
+            std::to_string(n));
+        refresh();
+        return true;
+      });
+  cleanup_btn->setDetailText(std::to_string(orphaned));
   list_box_->addView(cleanup_btn);
 
+  // Single-column checklist: everything renders in the LEFT text only.
   auto items = EnvironmentDoctor::run_all_checks(ctx_.memory_mode, ctx_.sd_root);
   for (const auto& item : items) {
-    auto* cell = new brls::DetailCell();
-    std::string prefix = "[OK] ";
-    if (item.severity == DiagnosticItem::Severity::Warning) prefix = "[WARN] ";
-    if (item.severity == DiagnosticItem::Severity::Error) prefix = "[ERR] ";
-    cell->setText(prefix + item.component);
-    std::string detail = item.summary;
+    auto* lbl = new brls::Label();
+    std::string line = severity_prefix(item.severity);
+    line += item.component;
+    line += "  —  ";
+    line += item.summary;
     if (!item.remediation_hint.empty()) {
-      detail += " | " + item.remediation_hint;
+      line += "  (";
+      line += item.remediation_hint;
+      line += ")";
     }
-    cell->setDetailText(detail);
-    list_box_->addView(cell);
+    lbl->setText(line);
+    list_box_->addView(lbl);
   }
 
+  // ---- Last run log tail ----
   auto log_sum = EnvironmentDoctor::inspect_last_run_log(
       std::filesystem::path(ctx_.sd_root) / "runtime/last_run.log", 20);
   if (log_sum.exists) {
@@ -76,11 +103,12 @@ void DiagnosticsTab::refresh() {
 
     for (const auto& line : log_sum.tail_lines) {
       auto* lbl = new brls::Label();
-      lbl->setText(line);
+      lbl->setText("  " + line);
       list_box_->addView(lbl);
     }
   }
 
+  // ---- Launcher log tail ----
   auto launcher_log_sum = EnvironmentDoctor::inspect_last_run_log(
       std::filesystem::path(ctx_.sd_root) / "runtime/launcher.log", 30);
   if (launcher_log_sum.exists) {
@@ -90,11 +118,12 @@ void DiagnosticsTab::refresh() {
 
     for (const auto& line : launcher_log_sum.tail_lines) {
       auto* lbl = new brls::Label();
-      lbl->setText(line);
+      lbl->setText("  " + line);
       list_box_->addView(lbl);
     }
   }
 }
+
 
 #else
 

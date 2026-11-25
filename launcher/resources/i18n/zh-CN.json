@@ -55,6 +55,7 @@
     "applet_confirm_title": "Applet 低内存模式警告"
   },
   "diagnostics": {
-    "launcher_log": "启动器日志"
+    "launcher_log": "启动器日志",
+    "tmp_cleaned": "已清理 "
   }
 }
