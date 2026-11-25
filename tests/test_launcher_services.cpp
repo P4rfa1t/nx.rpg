@@ -155,6 +155,24 @@ int main() {
 
     GlobalConfig updated = ConfigService::load_global(sd);
     NXRPG_CHECK(updated.library.last_selected_game_id == mv_game.id);
+
+    // Regression: dispatch must succeed on a REWRITE of launch.json too
+    // (Horizon fsdev rename() does not clobber; write_file_atomic removes first).
+    NXRPG_CHECK(CoreDispatcher::dispatch(mv_game, sd, false));
+    NXRPG_CHECK(CoreDispatcher::dispatch(mv_game, sd, false));
+    auto manifest2 = LaunchManifest::load_from_file(sd / "runtime/launch.json");
+    NXRPG_CHECK(manifest2.has_value());
+  }
+
+  // 4b. Default cpu_profile is system_default (never touches clkrst)
+  {
+    GlobalConfig def;
+    NXRPG_CHECK(def.performance.default_cpu_profile == CpuProfile::SystemDefault);
+    NXRPG_CHECK(to_string(CpuProfile::SystemDefault) == "system_default");
+    auto parsed = parse_cpu_profile("system_default");
+    NXRPG_CHECK(parsed.has_value() && *parsed == CpuProfile::SystemDefault);
+    LaunchManifest m;
+    NXRPG_CHECK(m.runtime.cpu_profile == CpuProfile::SystemDefault);
   }
 
   // 4. EnvironmentDoctor checks, .tmp cleanup & [nx.rpg][FATAL] parser
