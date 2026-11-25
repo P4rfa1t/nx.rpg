@@ -109,3 +109,12 @@
 ```text
 [nx.rpg][FATAL][core=mkxp-z][game=touhou-xp-91b2][code=SCRIPT_ERR] NoMethodError: undefined method `foo' for nil:NilClass
 ```
+
+### 完整运行日志（Per-Core Run Logs）
+
+`logPath`（默认 `runtime/last_run.log`）同时承载各核心的完整运行日志，均为**追加写**：
+
+- **EasyRPG**：上游 `--log-file` 全量 Player 日志（时间戳 + Error/Warning/Info/Debug 各级行）。
+- **mkxp-z**：补丁将 `stderr`（含 `Debug()`、RGSS 脚本错误、SDL 消息）`freopen` 镜像至 `logPath`，并在启动时写入 `---- mkxp-z session start (game=<id>) ----` 横幅。
+- **nxjs-mvz**：shim 在 session start / VFS 索引完成 / 干净退出 / FATAL 时追加带 ISO 时间戳的行。
+- **Launcher**：自身日志独立写在 `runtime/launcher.log`，Diagnostics 页同时显示两者的尾部。

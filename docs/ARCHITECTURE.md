@@ -59,11 +59,14 @@ Switch Homebrew 环境（Atmosphère `hbmenu` / `nro` loader）提供 `libnx` �
 
 ### 3.2 按需 CPU 频率档位（`clkrst` / `pcv`）
 
-部分重度插件化的 RPG Maker MV/MZ 地图或高分辨率立绘 XP/VXAce 同人游戏在 Switch 默认 `1020 MHz` CPU 频率下会出现掉帧。`nx.rpg` 提供三档安全频率策略（退出核心前强制复位至 `1020 MHz`）：
+部分重度插件化的 RPG Maker MV/MZ 地图或高分辨率立绘 XP/VXAce 同人游戏在 Switch 默认 `1020 MHz` CPU 频率下会出现掉帧。`nx.rpg` 提供四档频率策略：
 
-- `stock_1020`：`1020 MHz`（系统默认，最省电，适合 RM2000/2003 与轻量作品）
+- `system_default`（**默认**）：核心**完全不调用 `clkrst`**，尊重系统 powerd 策略或用户自装超频 sysmodule / KIP（如已超频至 2000 MHz 则保持 2000 MHz）
+- `stock_1020`：`1020 MHz`（显式钳制回官方默认，最省电，适合 RM2000/2003 与轻量作品）
 - `boost_1581`：`1581 MHz`（均衡超频档，显著改善 MV/MZ 切图加载与复杂并行事件卡顿）
 - `boost_1785`：`1785 MHz`（Switch 官方芯片最高安全频率，适合重度特效 MZ / 大型 RGSS 脚本作品）
+
+选择后三档时核心会在退出前把频率复位至 `1020 MHz`；`system_default` 不做任何调整。
 
 ---
 
