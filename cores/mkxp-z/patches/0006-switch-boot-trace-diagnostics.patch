@@ -1,0 +1,419 @@
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -52,7 +52,88 @@
+ 
+ #ifdef __SWITCH__
+ #include <switch.h>
+-#endif
++#include <csignal>
++#include <cstdarg>
++#include <cxxabi.h>
++#include <cstdio>
++
++/* ---- nx.rpg boot tracer: append one line per milestone to a fixed boot log.
++ * Lives outside the per-game log so even a crash before conf.read() leaves
++ * an exact death marker on the SD card. ---- */
++static FILE *nxrpg_boot_fp = 0;
++static void nxrpg_boot_open()
++{
++    if (nxrpg_boot_fp) return;
++    nxrpg_boot_fp = fopen("sdmc:/switch/nx.rpg/logs/mkxp-boot.log", "a");
++}
++static void nxrpg_boot(const char *fmt, ...)
++{
++    nxrpg_boot_open();
++    if (!nxrpg_boot_fp) return;
++    va_list ap;
++    va_start(ap, fmt);
++    vfprintf(nxrpg_boot_fp, fmt, ap);
++    va_end(ap);
++    fputc('\n', nxrpg_boot_fp);
++    fflush(nxrpg_boot_fp);
++    fsync(fileno(nxrpg_boot_fp));
++}
++static const char *nxrpg_sig_name(int sig)
++{
++    switch (sig) {
++    case SIGSEGV: return "SIGSEGV";
++    case SIGABRT: return "SIGABRT";
++    case SIGBUS:  return "SIGBUS";
++    case SIGILL:  return "SIGILL";
++    case SIGFPE:  return "SIGFPE";
++    default:      return "SIG?";
++    }
++}
++static void nxrpg_signal_handler(int sig)
++{
++    /* async-signal-safe-ish best effort write */
++    nxrpg_boot_open();
++    if (nxrpg_boot_fp) {
++        fprintf(nxrpg_boot_fp, "[nx.rpg][FATAL][core=mkxp-z][code=SIG] %d (%s)\n",
++                sig, nxrpg_sig_name(sig));
++        fflush(nxrpg_boot_fp);
++        fsync(fileno(nxrpg_boot_fp));
++        fclose(nxrpg_boot_fp);
++        nxrpg_boot_fp = 0;
++    }
++    _exit(128 + sig);
++}
++static void nxrpg_terminate_handler()
++{
++    if (std::current_exception()) {
++        try { throw; }
++        catch (const Exception &e) {
++            nxrpg_boot("[nx.rpg][FATAL][core=mkxp-z][code=CXX] mkxp Exception: %s", e.msg.c_str());
++        }
++        catch (const std::exception &e) {
++            nxrpg_boot("[nx.rpg][FATAL][core=mkxp-z][code=CXX] std::exception: %s", e.what());
++        }
++        catch (...) {
++            nxrpg_boot("[nx.rpg][FATAL][core=mkxp-z][code=CXX] unknown exception escaped to terminate");
++        }
++    } else {
++        nxrpg_boot("[nx.rpg][FATAL][core=mkxp-z][code=CXX] std::terminate called (no active exception)");
++    }
++    _exit(70);
++}
++static void nxrpg_boot_init()
++{
++    nxrpg_boot_open();
++    if (nxrpg_boot_fp) {
++        signal(SIGSEGV, nxrpg_signal_handler);
++        signal(SIGABRT, nxrpg_signal_handler);
++        signal(SIGBUS, nxrpg_signal_handler);
++        signal(SIGILL, nxrpg_signal_handler);
++        signal(SIGFPE, nxrpg_signal_handler);
++        std::set_terminate(nxrpg_terminate_handler);
++    }
++}
++#endif /* __SWITCH__ */
+ 
+ #if defined(__WIN32__)
+ #include "resource.h"
+@@ -133,12 +214,25 @@
+   RGSSThreadData *threadData = static_cast<RGSSThreadData *>(userdata);
+ 
+ #ifdef MKXPZ_INIT_GL_LATER
++#ifdef __SWITCH__
++  nxrpg_boot("[boot] rgssThread: initGL...");
++#endif
+   threadData->glContext =
+       initGL(threadData->window, threadData->config, threadData);
+-  if (!threadData->glContext)
++  if (!threadData->glContext) {
++#ifdef __SWITCH__
++    nxrpg_boot("[boot][FATAL] initGL returned null (see stderr mirror)");
++#endif
+     return 0;
++  }
++#ifdef __SWITCH__
++  nxrpg_boot("[boot] rgssThread: GL ctx ok");
++#endif
+ #else
+   SDL_GL_MakeCurrent(threadData->window, threadData->glContext);
++#ifdef __SWITCH__
++  nxrpg_boot("[boot] rgssThread: GL made current");
++#endif
+ #endif
+ 
+   /* Setup AL context */
+@@ -164,14 +258,23 @@
+ 
+   alcMakeContextCurrent(alcCtx);
+ 
++#ifdef __SWITCH__
++  nxrpg_boot("[boot] rgssThread: SharedState::initInstance (shaders+pathcache)...");
++#endif
+   try {
+     SharedState::initInstance(threadData);
+   } catch (const Exception &exc) {
++#ifdef __SWITCH__
++    nxrpg_boot("[boot][FATAL] SharedState init failed: %s", exc.msg.c_str());
++#endif
+     rgssThreadError(threadData, exc.msg);
+     alcDestroyContext(alcCtx);
+ 
+     return 0;
+   }
++#ifdef __SWITCH__
++  nxrpg_boot("[boot] rgssThread: SharedState ok, executing scripts");
++#endif
+ 
+   /* Start script execution */
+   scriptBinding->execute();
+@@ -246,9 +349,18 @@
+ 
+ int main(int argc, char *argv[]) {
+ #ifdef __SWITCH__
+-    romfsInit();
++    nxrpg_boot_init();
++    nxrpg_boot("[boot] main() entry argc=%d", argc);
++    for (int i = 0; i < argc; ++i)
++        nxrpg_boot("[boot] argv[%d]=%s", i, argv[i]);
++    Result nxrpg_romfs_rc = romfsInit();
++    nxrpg_boot("[boot] romfsInit rc=0x%x (module=%u desc=%u)", nxrpg_romfs_rc,
++               R_MODULE(nxrpg_romfs_rc), R_DESCRIPTION(nxrpg_romfs_rc));
+     bool nxrpg_clkrst_active = false;
+     ClkrstSession nxrpg_clkrst_session;
++    nxrpg_boot("[boot] entering guarded main body");
++    try
++    {
+ #endif
+     SDL_SetHint(SDL_HINT_VIDEO_MINIMIZE_ON_FOCUS_LOSS, "0");
+     SDL_SetHint(SDL_HINT_ACCELEROMETER_AS_JOYSTICK, "0");
+@@ -284,8 +396,15 @@
+ 
+     /* now we load the config */
+     Config conf;
++#ifdef __SWITCH__
++    nxrpg_boot("[boot] before conf.read");
++#endif
+     conf.read(argc, argv);
+ #ifdef __SWITCH__
++    nxrpg_boot("[boot] conf.read returned active=%d logPath=%s gameFolder=%s title=%s scripts=%s",
++               (int)conf.nxrpg.active, conf.nxrpg.logPath.c_str(),
++               conf.gameFolder.c_str(), conf.game.title.c_str(),
++               conf.game.scripts.c_str());
+     if (conf.nxrpg.active) {
+         /* system_default: never touch clkrst, so Horizon powerd or a
+          * user overclock sysmodule keeps control of CPU clocks. */
+@@ -316,6 +435,7 @@
+         }
+       }
+     }
++    nxrpg_boot("[boot] banner+freopen done");
+ #endif
+     if (conf.windowTitle.empty())
+       conf.windowTitle = conf.game.title;
+@@ -335,10 +455,19 @@
+ #endif
+ 
+     /* initialize SDL first */
++#ifdef __SWITCH__
++    nxrpg_boot("[boot] SDL_Init(GAMECONTROLLER|TIMER)...");
++#endif
+     if (SDL_Init(SDL_INIT_GAMECONTROLLER | SDL_INIT_TIMER) < 0) {
++#ifdef __SWITCH__
++      nxrpg_boot("[boot][FATAL] SDL_Init failed: %s", SDL_GetError());
++#endif
+       showInitError(std::string("Error initializing SDL: ") + SDL_GetError());
+       return 0;
+     }
++#ifdef __SWITCH__
++    nxrpg_boot("[boot] SDL_Init ok (video=%s)", SDL_GetCurrentVideoDriver());
++#endif
+ 
+     SDL_Window *win = nullptr;
+ 
+@@ -586,9 +715,15 @@
+ #endif // MKXPZ_HAVE_ANGLE
+ 
+     if (win == nullptr && (win = initVideo(conf)) == nullptr) {
++#ifdef __SWITCH__
++      nxrpg_boot("[boot][FATAL] initVideo failed: %s", SDL_GetError());
++#endif
+       showInitError(std::string("Error creating window: ") + SDL_GetError());
+       return 0;
+     }
++#ifdef __SWITCH__
++    nxrpg_boot("[boot] window created %dx%d", conf.defScreenW, conf.defScreenH);
++#endif
+ 
+     if (!EventThread::allocUserEvents()) {
+       showInitError("Error allocating SDL user events");
+@@ -633,7 +768,13 @@
+       return 0;
+     }
+ 
++#ifdef __SWITCH__
++    nxrpg_boot("[boot] IMG/TTF ok, Sound_Init...");
++#endif
+     if (Sound_Init() == 0) {
++#ifdef __SWITCH__
++      nxrpg_boot("[boot][FATAL] Sound_Init failed: %s", Sound_GetError());
++#endif
+       showInitError(std::string("Error initializing SDL_sound: ") +
+                     Sound_GetError());
+       TTF_Quit();
+@@ -697,9 +838,15 @@
+     (void)setupWindowIcon;
+ #endif
+ 
++#ifdef __SWITCH__
++    nxrpg_boot("[boot] alcOpenDevice...");
++#endif
+     ALCdevice *alcDev = alcOpenDevice(0);
+ 
+     if (!alcDev) {
++#ifdef __SWITCH__
++      nxrpg_boot("[boot][FATAL] alcOpenDevice returned null");
++#endif
+       showInitError("Could not detect an available audio device.");
+       SDL_DestroyWindow(win);
+       TTF_Quit();
+@@ -746,7 +893,13 @@
+ #endif
+ 
+     /* Start RGSS thread */
++#ifdef __SWITCH__
++    nxrpg_boot("[boot] starting RGSS thread");
++#endif
+     SDL_Thread *rgssThread = SDL_CreateThread(rgssThreadFun, "rgss", &rtData);
++#ifdef __SWITCH__
++    nxrpg_boot("[boot] RGSS thread started, event loop entered");
++#endif
+ 
+     /* Start event processing */
+     eventThread.process(rtData);
+@@ -831,6 +984,16 @@
+       std::string retArgv = conf.nxrpg.returnTo + " --from-core";
+       envSetNextLoad(conf.nxrpg.returnTo.c_str(), retArgv.c_str());
+     }
++    }  /* end guarded main body */
++    catch (const Exception &nxrpg_exc) {
++      nxrpg_boot("[nx.rpg][FATAL][core=mkxp-z][code=EXC] %s", nxrpg_exc.msg.c_str());
++    }
++    catch (const std::exception &nxrpg_exc2) {
++      nxrpg_boot("[nx.rpg][FATAL][core=mkxp-z][code=STD] %s", nxrpg_exc2.what());
++    }
++    catch (...) {
++      nxrpg_boot("[nx.rpg][FATAL][core=mkxp-z][code=UNK] unknown exception in main");
++    }
+ #endif
+ 
+     return 0;
+--- a/binding/binding-mri.cpp
++++ b/binding/binding-mri.cpp
+@@ -31,6 +31,9 @@
+ #include "util/boost-hash.h"
+ #include "util/exception.h"
+ #include "util/encoding.h"
++#ifdef __SWITCH__
++static void nxrpg_boot2(const char *fmt, ...);
++#endif
+ 
+ #include "config.h"
+ 
+@@ -957,6 +960,9 @@
+ static void runRMXPScripts(BacktraceData &btData) {
+     const Config &conf = shState->rtData().config;
+     const std::string &scriptPack = conf.game.scripts;
++#ifdef __SWITCH__
++    nxrpg_boot2("[boot] runRMXPScripts: scriptPack=%s", scriptPack.c_str());
++#endif
+     
+     if (scriptPack.empty()) {
+         showMsg("No script file has been specified. Check the game's INI and try again.");
+@@ -973,7 +979,9 @@
+     /* We checked if Scripts.rxdata exists, but something might
+      * still go wrong */
+     try {
++        nxrpg_boot2("[boot] kernelLoadDataInt( Marshal.load Scripts )...");
+         scriptArray = kernelLoadDataInt(scriptPack.c_str(), false, false);
++        nxrpg_boot2("[boot] kernelLoadDataInt ok (script entries loaded)");
+     } catch (const Exception &e) {
+         showMsg(std::string("Failed to read script data: ") + e.msg);
+         return;
+@@ -1041,7 +1049,13 @@
+     {
+         if (shState->rtData().rqTerm)
+             break;
++#ifdef __SWITCH__
++        nxrpg_boot2("[boot] preload: %s", i->c_str());
++#endif
+         runCustomScript(*i);
++#ifdef __SWITCH__
++        nxrpg_boot2("[boot] preload done: %s", i->c_str());
++#endif
+     }
+     
+     VALUE exc = rb_gv_get("$!");
+@@ -1180,6 +1194,22 @@
+     showMsg(ms);
+ }
+ 
++#ifdef __SWITCH__
++#include <cstdarg>
++static FILE *nxrpg_boot_fp2 = 0;
++static void nxrpg_boot2(const char *fmt, ...) {
++    if (!nxrpg_boot_fp2)
++        nxrpg_boot_fp2 = fopen("sdmc:/switch/nx.rpg/logs/mkxp-boot.log", "a");
++    if (!nxrpg_boot_fp2) return;
++    va_list ap; va_start(ap, fmt);
++    vfprintf(nxrpg_boot_fp2, fmt, ap);
++    va_end(ap);
++    fputc('\n', nxrpg_boot_fp2);
++    fflush(nxrpg_boot_fp2);
++    fsync(fileno(nxrpg_boot_fp2));
++}
++#endif
++
+ static void mriBindingExecute() {
+     Config &conf = shState->rtData().config;
+     
+@@ -1191,8 +1221,10 @@
+     char **argv = 0;
+     ruby_sysinit(&argc, &argv);
+     
++    nxrpg_boot2("[boot] RUBY_INIT_STACK + ruby_init...");
+     RUBY_INIT_STACK;
+     ruby_init();
++    nxrpg_boot2("[boot] ruby_init ok");
+     
+     std::vector<const char*> rubyArgsC{"mkxp-z"};
+     rubyArgsC.push_back("-e ");
+--- a/src/filesystem/filesystemImpl.cpp
++++ b/src/filesystem/filesystemImpl.cpp
+@@ -23,8 +23,18 @@
+ 
+ // https://stackoverflow.com/questions/12774207/fastest-way-to-check-if-a-file-exist-using-standard-c-c11-c
+ bool filesystemImpl::fileExists(const char *path) {
++    /* nx.rpg: use the non-throwing overloads. On Horizon, malformed paths
++     * (e.g. "sdmc:..." concatenated twice) make the throwing fs::exists()
++     * raise std::filesystem errors that escape Config::read and abort. */
++    std::error_code ec;
+     fs::path stdPath(path);
+-    return (fs::exists(stdPath) && !fs::is_directory(stdPath));
++    bool exists = fs::exists(stdPath, ec);
++    if (ec)
++        return false;
++    bool isdir = fs::is_directory(stdPath, ec);
++    if (ec)
++        return false;
++    return exists && !isdir;
+ }
+ 
+ 
+@@ -45,7 +55,12 @@
+ // chdir and getcwd do not support unicode on Windows
+ bool filesystemImpl::setCurrentDirectory(const char *path) {
+     fs::path stdPath(path);
+-    fs::current_path(stdPath);
++    std::error_code ec;
++    fs::current_path(stdPath, ec);
++    if (ec) {
++        Debug() << "Failed to switch into directory:" << path << "-" << ec.message();
++        return false;
++    }
+     bool ret;
+ 
+     try {
+@@ -70,8 +85,16 @@
+ 
+ std::string filesystemImpl::normalizePath(const char *path, bool preferred, bool absolute) {
+     fs::path stdPath(path);
+-    
+-    if (!stdPath.is_absolute() && absolute)
++
++    /* nx.rpg: ghc::filesystem doesn't know Horizon device prefixes ("sdmc:",
++     * "romfs:"): it classifies "sdmc:/foo" as RELATIVE (single-letter drive
++     * rule), so the `absolute` branch below would wrongly prepend the CWD,
++     * producing "cwd/sdmc:/foo" monsters. Treat any "X:"-prefixed path that
++     * continues with a separator as already-absolute. */
++    bool devicePrefixed = stdPath.string().size() >= 3
++        && stdPath.string()[1] == ':'
++        && (stdPath.string()[2] == '/' || stdPath.string()[2] == '\\');
++    if (!stdPath.is_absolute() && !devicePrefixed && absolute)
+         stdPath = fs::current_path() / stdPath;
+ 
+     stdPath = stdPath.lexically_normal();

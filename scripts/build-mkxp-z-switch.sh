@@ -46,7 +46,8 @@ for p in 0001-meson-horizon-host-and-nro-target.patch \
          0002-switch-nxrpg-manifest-config-loader.patch \
          0003-switch-sdl2-gamepad-exitcombo-and-chainload.patch \
          0004-switch-swkbd-text-input-binding.patch \
-         0005-switch-sdl2-image-disable-jxl.patch; do
+         0005-switch-sdl2-image-disable-jxl.patch \
+         0006-switch-boot-trace-diagnostics.patch; do
   git -C "$SRC_STAGE" apply --ignore-whitespace "$ROOT_DIR/cores/mkxp-z/patches/$p"
 done
 
