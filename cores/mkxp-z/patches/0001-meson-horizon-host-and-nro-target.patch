@@ -539,7 +539,7 @@ index 0000000..667d2b4
 + 
 + #ifdef RB_THREAD_T_HAS_NATIVE_ID
 diff --git a/subprojects/packagefiles/ruby-3.1/meson.build b/subprojects/packagefiles/ruby-3.1/meson.build
-index 05979e8..515efd0 100644
+index 05979e8..7cdf13d 100644
 --- a/subprojects/packagefiles/ruby-3.1/meson.build
 +++ b/subprojects/packagefiles/ruby-3.1/meson.build
 @@ -36,6 +36,68 @@ ruby_deps = [
@@ -632,7 +632,7 @@ index 05979e8..515efd0 100644
                  'CC=' + run_command(subproject('common').get_variable('quotetool'), meson.get_compiler('c').cmd_array(), check: true).stdout().strip(),
                  'CXX=' + run_command(subproject('common').get_variable('quotetool'), meson.get_compiler('cpp').cmd_array(), check: true).stdout().strip(),
                  'AR=' + run_command(subproject('common').get_variable('quotetool'), subproject('common').get_variable('ar'), check: true).stdout().strip(),
-@@ -101,7 +171,17 @@ ruby = declare_dependency(
+@@ -101,7 +171,24 @@ ruby = declare_dependency(
                  'rb_cv_gcc_sync_builtins': 'no',
                  'rb_cv_prog_gnu_ld': subproject('common').get_variable('c_linker_is_gnu') ? 'yes' : 'no',
                  'rb_cv_symbol_prefix': meson.get_compiler('c').symbols_have_underscore_prefix() ? '_' : 'NONE',
@@ -647,11 +647,18 @@ index 05979e8..515efd0 100644
 +                'ac_cv_func_backtrace': 'no',
 +                'ac_cv_func_mmap': 'no',
 +                'rb_cv_dev_t_convertible': 'INT',
++                # nx.rpg(horizon): libnx threads lack the guard-page layout
++                # -fstack-protector assumes and ruby's own canaries fired
++                # inside ruby_init on Switch. Pre-seed the shell variable
++                # ruby's configure.ac checks
++                # (AS_IF([test -z "${stack_protector+set}"])) so the
++                # -fstack-protector-strong detection is skipped entirely.
++                'stack_protector': 'no',
 +            } : {}),
              depends: [
                  # Force Meson to fully build all of our vendored dependencies that are required by Ruby before building Ruby itself
                  executable(
-@@ -160,46 +240,7 @@ ruby = declare_dependency(
+@@ -160,46 +247,7 @@ ruby = declare_dependency(
              ]
              : [],
          meson.project_build_root() / 'build' / 'ext' / 'extinit.a',

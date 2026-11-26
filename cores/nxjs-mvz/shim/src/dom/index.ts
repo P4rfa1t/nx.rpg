@@ -22,13 +22,18 @@ export class DomShimControllerImpl implements DomShimController {
   private primaryClaimed = false;
   private readonly vfs: CaseInsensitiveVfsImpl;
   private onOpenSwkbd?: (initial: string, maxLen: number) => Promise<string | null>;
+  /** Diagnostics channel writing into the per-game run log (guaranteed to
+   * reach the SD card even when V8 console output is not redirected). */
+  private runLog?: (line: string) => void;
 
   constructor(
     vfs: CaseInsensitiveVfsImpl,
     onOpenSwkbd?: (initial: string, maxLen: number) => Promise<string | null>,
+    runLog?: (line: string) => void,
   ) {
     this.vfs = vfs;
     this.onOpenSwkbd = onOpenSwkbd;
+    this.runLog = runLog;
   }
 
   install(manifest: LaunchManifest): void {
@@ -361,14 +366,31 @@ export class DomShimControllerImpl implements DomShimController {
 
     const g = globalThis as any;
     // MV's error screen can itself fail before Graphics has created its canvas.
-    // Log the original exception before its handler attempts to render it.
+    // Log the original exception into the run log BEFORE its handler attempts
+    // to render it (V8 console output does not reliably reach the log file).
+    const describeErr = (err: unknown): string => {
+      if (err instanceof Error) return `${err.name}: ${err.message}\n${err.stack ?? ''}`;
+      return String(err);
+    };
     const sceneManager = g.SceneManager;
     if (sceneManager && typeof sceneManager.catchException === 'function') {
+      const self = this;
       const originalCatchException = sceneManager.catchException;
       sceneManager.catchException = function (error: unknown) {
+        try { self.runLog?.(`[ERROR] SceneManager exception: ${describeErr(error)}`); }
+        catch { /* never break the error path */ }
         console.error('[nx.rpg] SceneManager exception:', error);
         return originalCatchException.call(this, error);
       };
+    }
+    // Surface unhandled promise rejections too (MV/MZ async plugin failures).
+    if (typeof g.addEventListener === 'function') {
+      g.addEventListener('unhandledrejection', (ev: any) => {
+        const reason = ev?.reason ?? ev?.detail?.reason ?? ev;
+        try { this.runLog?.(`[ERROR] Unhandled rejection: ${describeErr(reason)}`); }
+        catch { /* ignore */ }
+        console.error('[nx.rpg] Unhandled rejection:', reason);
+      });
     }
     if (typeof g.onload === 'function') {
       g.onload();

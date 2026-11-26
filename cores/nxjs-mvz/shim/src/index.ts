@@ -48,8 +48,12 @@ export class MvzBootstrapImpl implements MvzBootstrap {
     this.storage = new IsolatedSaveStorageImpl(this.fs);
     this.vfs = new CaseInsensitiveVfsImpl(this.decryptor, this.fs);
     this.nwjs = new NwjsSandboxShimImpl(this.fs);
-    this.dom = new DomShimControllerImpl(this.vfs, (init, maxLen) =>
-      this.input.openSoftwareKeyboard(init, maxLen),
+    this.dom = new DomShimControllerImpl(
+      this.vfs,
+      (init, maxLen) => this.input.openSoftwareKeyboard(init, maxLen),
+      (line) => {
+        if (this.manifest?.logPath) appendRunLog(this.fs, this.manifest.logPath, line);
+      },
     );
   }
 

@@ -60,3 +60,7 @@ __pycache__/
 Thumbs.db
 *.log
 tests/build-host/
+
+# Local build probes / one-shot container scripts (not part of the repo)
+.tmp-probe/
+build/

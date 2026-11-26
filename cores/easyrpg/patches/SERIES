@@ -5,3 +5,4 @@
 0002-switch-enable-custom-rtp-path.patch
 0003-switch-swkbd-name-input.patch
 0004-switch-boot-trace-and-log-mirror.patch
+0005-switch-audio-underrun-fix.patch
