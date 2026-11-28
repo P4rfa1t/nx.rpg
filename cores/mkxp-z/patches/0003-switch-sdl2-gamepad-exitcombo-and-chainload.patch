@@ -37,8 +37,35 @@ index 82d91ce..0172d65 100644
                  break;
                  
              case SDL_CONTROLLERBUTTONUP:
+diff --git a/src/input/keybindings.cpp b/src/input/keybindings.cpp
+index e62076a..a277f6d 100644
+--- a/src/input/keybindings.cpp
++++ b/src/input/keybindings.cpp
+@@ -149,8 +149,21 @@ BDescVec genDefaultBindings(const Config &conf)
+ 		for (size_t i = 0; i < defaultKbBindings2N; ++i)
+ 			defaultKbBindings2[i].add(d);
+ 
+-	for (size_t i = 0; i < defaultCtrlBindingsN; ++i)
++	for (size_t i = 0; i < defaultCtrlBindingsN; ++i) {
++#ifdef __SWITCH__
++		/* Switch SDL2 maps physical A -> SDL_CONTROLLER_BUTTON_B and physical
++		 * B -> SDL_CONTROLLER_BUTTON_A. Default to Nintendo layout (A=Confirm,
++		 * B=Cancel) unless swapConfirmCancel is explicitly enabled. */
++		if (!conf.nxrpg.swapConfirmCancel) {
++			CtrlBindingData b = defaultCtrlBindings[i];
++			if (b.source == SDL_CONTROLLER_BUTTON_A) b.source = SDL_CONTROLLER_BUTTON_B;
++			else if (b.source == SDL_CONTROLLER_BUTTON_B) b.source = SDL_CONTROLLER_BUTTON_A;
++			b.add(d);
++			continue;
++		}
++#endif
+ 		defaultCtrlBindings[i].add(d);
++	}
+ 
+ 	addAxisBinding(d, SDL_CONTROLLER_AXIS_LEFTX, Negative, Input::Left );
+ 	addAxisBinding(d, SDL_CONTROLLER_AXIS_LEFTX, Positive, Input::Right);
 diff --git a/src/main.cpp b/src/main.cpp
-index af81d66..1e418a5 100644
+index af81d66..bff85f8 100644
 --- a/src/main.cpp
 +++ b/src/main.cpp
 @@ -50,6 +50,10 @@
@@ -112,7 +139,7 @@ index af81d66..1e418a5 100644
      if (conf.windowTitle.empty())
        conf.windowTitle = conf.game.title;
  
-@@ -737,6 +771,19 @@ int main(int argc, char *argv[]) {
+@@ -737,6 +778,19 @@ int main(int argc, char *argv[]) {
  
      if (!rtData.rgssErrorMsg.empty()) {
        Debug() << rtData.rgssErrorMsg;
@@ -132,7 +159,7 @@ index af81d66..1e418a5 100644
        SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, conf.game.title.c_str(),
                                 rtData.rgssErrorMsg.c_str(), win);
      }
-@@ -765,6 +814,20 @@ int main(int argc, char *argv[]) {
+@@ -765,6 +819,20 @@ int main(int argc, char *argv[]) {
      IMG_Quit();
      SDL_Quit();
  

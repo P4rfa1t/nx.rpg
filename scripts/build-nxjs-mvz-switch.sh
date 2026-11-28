@@ -28,6 +28,7 @@ bash "$ROOT_DIR/scripts/apply-patches.sh" nxjs-mvz
 # Step 1: Build patched nx.js runtime + nxjs.nro if switch-v8 is present
 if [[ -n "${DEVKITPRO:-}" ]] && [[ -f "$DEVKITPRO/portlibs/switch/lib/libv8_monolith.a" ]]; then
   echo ">>> Building patched nxjs.nro from third_party/nx.js..."
+  cp "$ROOT_DIR/common/include/nxrpg/fps_overlay.hpp" "$NXJS_DIR/source/nxrpg_fps_overlay.hpp"
   (
     cd "$NXJS_DIR"
     pnpm install --frozen-lockfile || pnpm install --no-frozen-lockfile

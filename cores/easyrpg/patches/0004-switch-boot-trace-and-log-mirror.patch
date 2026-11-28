@@ -1,12 +1,26 @@
+diff --git a/src/game_config.cpp b/src/game_config.cpp
+index 7eb9c3b..41260b0 100644
+--- a/src/game_config.cpp
++++ b/src/game_config.cpp
+@@ -165,7 +165,7 @@ FilesystemView Game_Config::GetGlobalConfigFilesystem() {
+ #elif defined(__WIIU__)
+ 		path = "fs:/vol/external01/wiiu/data/easyrpg-player";
+ #elif defined(__SWITCH__)
+-		path = "/switch/easyrpg-player";
++		path = "sdmc:/switch/nx.rpg/config/easyrpg";
+ #elif defined(__3DS__)
+ 		path = "sdmc:/data/easyrpg-player";
+ #elif defined(__vita__)
 diff --git a/src/platform/switch/main.cpp b/src/platform/switch/main.cpp
-index 13eec3a..481e14e 100644
+index 13eec3a..009c686 100644
 --- a/src/platform/switch/main.cpp
 +++ b/src/platform/switch/main.cpp
-@@ -60,6 +60,69 @@ namespace nxrpg_bridge {
+@@ -60,6 +60,70 @@ namespace nxrpg_bridge {
  	}
  }
  
 +#ifdef PLAYER_NINTENDO
++#include <cerrno>
 +#include <csignal>
 +#include <cstdarg>
 +#include <exception>
@@ -72,18 +86,56 @@ index 13eec3a..481e14e 100644
  namespace {
  	int nxlinkSocket = -1;
  	bool is_nro = true;
-@@ -278,13 +341,20 @@ static void LogCallback(LogLevel lvl, std::string const& msg, LogCallbackUserDat
+@@ -245,14 +309,29 @@ namespace {
+ 			args.push_back("--soundfont");
+ 			args.push_back(soundfont_path);
+ 		}
++		{
++			std::error_code ec;
++			const char* kEasyRpgConfigDir = "sdmc:/switch/nx.rpg/config/easyrpg";
++			std::filesystem::create_directories(kEasyRpgConfigDir, ec);
++			args.push_back("--config-path");
++			args.push_back(kEasyRpgConfigDir);
++		}
+ 		if (!nxrpg_log_path.empty()) {
+ 			std::error_code ec;
+ 			std::filesystem::path lp(nxrpg_log_path);
+ 			if (lp.has_parent_path()) {
+ 				std::filesystem::create_directories(lp.parent_path(), ec);
+ 			}
+-			args.push_back("--log-file");
+-			args.push_back(nxrpg_log_path);
++			FILE* lfp = std::fopen(nxrpg_log_path.c_str(), "a");
++			if (lfp) {
++				std::fprintf(lfp, "[nx.rpg] easyrpg session start game=%s\n",
++					nxrpg_game_id.empty() ? "unknown" : nxrpg_game_id.c_str());
++				std::fflush(lfp);
++				fsync(fileno(lfp));
++				std::fclose(lfp);
++			} else {
++				nxrpg_eboot("[boot][WARN] fopen(%s, a) failed errno=%d", nxrpg_log_path.c_str(), errno);
++			}
+ 		}
+ 		args.push_back(vsync ? "--vsync" : "--no-vsync");
+ 		args.push_back(show_fps ? "--show-fps" : "--no-show-fps");
+@@ -278,13 +357,25 @@ static void LogCallback(LogLevel lvl, std::string const& msg, LogCallbackUserDat
  		printf("%s: %s\n", prefix.c_str(), msg.c_str());
  	}
  
 -	// Append structured fatal header for Launcher DiagnosticsTab when running under nx.rpg
 -	if (lvl == LogLevel::Error && !nxrpg_log_path.empty()) {
+-		FILE* fp = std::fopen(nxrpg_log_path.c_str(), "ab");
 +	// nx.rpg: mirror EVERY level into the per-game log (open-append-close).
 +	// Previously only Error lines landed there, so a game dying without an
 +	// Output::Error produced a 0-byte log. Keep the structured [FATAL] line
 +	// for the Launcher DiagnosticsTab.
 +	if (!nxrpg_log_path.empty()) {
- 		FILE* fp = std::fopen(nxrpg_log_path.c_str(), "ab");
++		FILE* fp = std::fopen(nxrpg_log_path.c_str(), "a");
++		static bool warned_open_fail = false;
++		if (!fp && !warned_open_fail) {
++			warned_open_fail = true;
++			nxrpg_eboot("[boot][WARN] LogCallback fopen(%s) failed errno=%d", nxrpg_log_path.c_str(), errno);
++		}
  		if (fp) {
 -			std::fprintf(fp, "[nx.rpg][FATAL][core=easyrpg][game=%s][code=PLAYER_ERR] %s\n",
 -				nxrpg_game_id.empty() ? "unknown" : nxrpg_game_id.c_str(),
@@ -98,7 +150,7 @@ index 13eec3a..481e14e 100644
  			std::fflush(fp);
  			fsync(fileno(fp));
  			std::fclose(fp);
-@@ -320,6 +390,12 @@ void SwitchExit() {
+@@ -320,6 +411,12 @@ void SwitchExit() {
  }
  
  int main(int argc, char* argv[]) {
@@ -111,7 +163,7 @@ index 13eec3a..481e14e 100644
  	std::vector<std::string> raw_args(argv, argv + argc);
  	std::vector<std::string> args;
  	std::string manifest_path;
-@@ -356,9 +432,19 @@ int main(int argc, char* argv[]) {
+@@ -356,9 +453,19 @@ int main(int argc, char* argv[]) {
  			socketExit();
  	}
  
@@ -131,7 +183,7 @@ index 13eec3a..481e14e 100644
  
  	// Check if romfs has some files inside or not (skipped when launched by nx.rpg)
  	if(!has_manifest && ::access("romfs:/RPG_RT.lmt", F_OK) == 0) {
-@@ -381,8 +467,17 @@ int main(int argc, char* argv[]) {
+@@ -381,8 +488,17 @@ int main(int argc, char* argv[]) {
  	atexit(SwitchExit);
  
  	// Run Player

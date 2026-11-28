@@ -12,7 +12,26 @@
     "library": "全部游戏",
     "recent": "最近游玩",
     "diagnostics": "环境与日志自检",
-    "settings": "全局设置"
+    "settings": "全局设置",
+    "transfer": "文件传输"
+  },
+  "transfer": {
+    "intro": "共享整个 switch/nx.rpg/，包括游戏、存档和核心。两个开关可同时开启，切换到其他页面仍会继续运行；只有手动关闭、启动游戏前或退出 nx.rpg 时才会停止。FTP 为明文协议，请只在可信局域网使用。",
+    "mtp": "USB MTP",
+    "ftp": "局域网 FTP",
+    "off": "已关闭",
+    "waiting": "等待连接",
+    "connected": "已连接",
+    "address": "地址",
+    "anonymous": "匿名，无需密码",
+    "file": "文件",
+    "speed": "速率",
+    "received": "已接收",
+    "files": "个文件",
+    "error": "无法启动文件传输",
+    "error_short": "错误",
+    "stop_before_launch": "文件传输正在运行。启动游戏前请先关闭 USB MTP / 局域网 FTP。",
+    "stop_and_launch": "停止传输并启动"
   },
   "actions": {
     "launch": "启动游戏",

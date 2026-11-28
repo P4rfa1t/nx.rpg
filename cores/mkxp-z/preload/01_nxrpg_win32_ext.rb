@@ -99,13 +99,19 @@ end
 
 if defined?(Win32API)
   class Win32API
-    alias nxrpg_orig_initialize initialize
-    alias nxrpg_orig_call call
+    if method_defined?(:initialize)
+      alias nxrpg_orig_initialize initialize
+    end
+    if method_defined?(:call)
+      alias nxrpg_orig_call call
+    end
 
     def initialize(dll, func, import = 'V', export = 'V', calltype = :stdcall)
       @nxrpg_dll = dll.to_s.downcase.sub(/\.dll\z/, '')
       @nxrpg_func = func.to_s
-      nxrpg_orig_initialize(dll, func, import, export, calltype)
+      if respond_to?(:nxrpg_orig_initialize, true)
+        nxrpg_orig_initialize(dll, func, import, export, calltype)
+      end
     end
 
     def call(*args)
@@ -134,7 +140,8 @@ if defined?(Win32API)
         return 1 # IDOK
       end
 
-      nxrpg_orig_call(*args)
+      return nxrpg_orig_call(*args) if respond_to?(:nxrpg_orig_call, true)
+      0
     end
   end
 end

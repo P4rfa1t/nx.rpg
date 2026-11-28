@@ -109,6 +109,44 @@ index b6344f9..cf7558e 100644
      
      std::string &customScript = conf.customScript;
      if (!customScript.empty())
+diff --git a/scripts/preload/win32_wrap.rb b/scripts/preload/win32_wrap.rb
+index c39e419..16079a9 100644
+--- a/scripts/preload/win32_wrap.rb
++++ b/scripts/preload/win32_wrap.rb
+@@ -352,7 +352,7 @@ class Win32API
+ 	TOLERATE_ERRORS = true unless const_defined?("TOLERATE_ERRORS")
+ 	LOG_NATIVE = false unless const_defined?("LOG_NATIVE")
+ 
+-	alias_method :mkxp_native_initialize, :initialize
++	alias_method :mkxp_native_initialize, :initialize if method_defined?(:call)
+ 	def initialize(dll, func, *args)
+ 		@dll = dll
+ 		@func = func
+@@ -372,16 +372,18 @@ class Win32API
+ 		end
+ 
+ 		@mkxp_native_available = false
+-		begin
+-			mkxp_native_initialize(@dll, @func, *args)
+-			@mkxp_native_available = true
+-			return
+-		rescue
++		if respond_to?(:mkxp_native_initialize, true)
++			begin
++				mkxp_native_initialize(@dll, @func, *args)
++				@mkxp_native_available = true
++				return
++			rescue
++			end
+ 		end
+ 
+ 	end
+ 
+-	alias_method :mkxp_native_call, :call
++	alias_method :mkxp_native_call, :call if method_defined?(:call)
+ 	def call(*args)
+ 		if @mkxp_wrap_impl
+ 			return @mkxp_wrap_impl.call(args)
 diff --git a/src/crypto/rgssad.cpp b/src/crypto/rgssad.cpp
 index d5117f9..1ff2c24 100644
 --- a/src/crypto/rgssad.cpp
@@ -194,14 +232,16 @@ index 1d79dee..57ae45b 100644
  
      stdPath = stdPath.lexically_normal();
 diff --git a/src/main.cpp b/src/main.cpp
-index bff85f8..14db35b 100644
+index bff85f8..1166a85 100644
 --- a/src/main.cpp
 +++ b/src/main.cpp
-@@ -52,7 +52,90 @@
+@@ -52,7 +52,118 @@
  
  #ifdef __SWITCH__
  #include <switch.h>
 -#endif
++#include <sys/resource.h>
++#include <cstring>
 +#include <csignal>
 +#include <cstdarg>
 +#include <cxxabi.h>
@@ -272,6 +312,32 @@ index bff85f8..14db35b 100644
 +    }
 +    _exit(70);
 +}
++/* Strong override for libnx's weak getrusage (which writes 144 bytes vs
++ * newlib's 32-byte struct rusage, smashing Ruby Init_heap's stack frame). */
++extern "C" int getrusage(int who, struct rusage *r_usage)
++{
++    (void)who;
++    if (r_usage) memset(r_usage, 0, sizeof(*r_usage));
++    return 0;
++}
++extern "C" {
++alignas(16) u8 __nx_exception_stack[0x4000];
++u64 __nx_exception_stack_size = sizeof(__nx_exception_stack);
++void __libnx_exception_handler(ThreadExceptionDump *ctx)
++{
++    MemoryInfo mi{};
++    u32 pi = 0;
++    svcQueryMemory(&mi, &pi, (u64)ctx->pc.x);
++    nxrpg_boot("[EXN] desc=0x%x pc=0x%llx (off=0x%llx) lr=0x%llx sp=0x%llx fp=0x%llx far=0x%llx",
++               ctx->error_desc,
++               (unsigned long long)ctx->pc.x,
++               (unsigned long long)(ctx->pc.x - mi.addr),
++               (unsigned long long)ctx->lr.x,
++               (unsigned long long)ctx->sp.x,
++               (unsigned long long)ctx->fp.x,
++               (unsigned long long)ctx->far.x);
++}
++}
 +static void nxrpg_boot_init()
 +{
 +    FILE *fp = fopen("sdmc:/switch/nx.rpg/logs/mkxp-boot.log", "a");
@@ -289,7 +355,7 @@ index bff85f8..14db35b 100644
  
  #if defined(__WIN32__)
  #include "resource.h"
-@@ -133,12 +216,25 @@ int rgssThreadFun(void *userdata) {
+@@ -133,12 +244,25 @@ int rgssThreadFun(void *userdata) {
    RGSSThreadData *threadData = static_cast<RGSSThreadData *>(userdata);
  
  #ifdef MKXPZ_INIT_GL_LATER
@@ -316,7 +382,7 @@ index bff85f8..14db35b 100644
  #endif
  
    /* Setup AL context */
-@@ -164,14 +260,23 @@ int rgssThreadFun(void *userdata) {
+@@ -164,14 +288,23 @@ int rgssThreadFun(void *userdata) {
  
    alcMakeContextCurrent(alcCtx);
  
@@ -340,13 +406,16 @@ index bff85f8..14db35b 100644
  
    /* Start script execution */
    scriptBinding->execute();
-@@ -246,9 +351,18 @@ static SDL_Window *initVideo(const Config &conf) {
+@@ -246,9 +379,21 @@ static SDL_Window *initVideo(const Config &conf) {
  
  int main(int argc, char *argv[]) {
  #ifdef __SWITCH__
 -    romfsInit();
 +    nxrpg_boot_init();
-+    nxrpg_boot("[boot] main() entry argc=%d", argc);
++    MemoryInfo nxrpg_mi{};
++    u32 nxrpg_pi = 0;
++    svcQueryMemory(&nxrpg_mi, &nxrpg_pi, (u64)&main);
++    nxrpg_boot("[boot] main() entry argc=%d base=0x%llx", argc, (unsigned long long)nxrpg_mi.addr);
 +    for (int i = 0; i < argc; ++i)
 +        nxrpg_boot("[boot] argv[%d]=%s", i, argv[i]);
 +    Result nxrpg_romfs_rc = romfsInit();
@@ -360,7 +429,7 @@ index bff85f8..14db35b 100644
  #endif
      SDL_SetHint(SDL_HINT_VIDEO_MINIMIZE_ON_FOCUS_LOSS, "0");
      SDL_SetHint(SDL_HINT_ACCELEROMETER_AS_JOYSTICK, "0");
-@@ -284,8 +398,15 @@ int main(int argc, char *argv[]) {
+@@ -284,8 +429,15 @@ int main(int argc, char *argv[]) {
  
      /* now we load the config */
      Config conf;
@@ -376,7 +445,7 @@ index bff85f8..14db35b 100644
      if (conf.nxrpg.active) {
          /* system_default: never touch clkrst, so Horizon powerd or a
           * user overclock sysmodule keeps control of CPU clocks. */
-@@ -316,6 +437,7 @@ int main(int argc, char *argv[]) {
+@@ -316,6 +468,7 @@ int main(int argc, char *argv[]) {
          }
        }
      }
@@ -384,7 +453,7 @@ index bff85f8..14db35b 100644
  #endif
      if (conf.windowTitle.empty())
        conf.windowTitle = conf.game.title;
-@@ -335,10 +457,19 @@ int main(int argc, char *argv[]) {
+@@ -335,10 +488,19 @@ int main(int argc, char *argv[]) {
  #endif
  
      /* initialize SDL first */
@@ -404,7 +473,7 @@ index bff85f8..14db35b 100644
  
      SDL_Window *win = nullptr;
  
-@@ -586,9 +717,15 @@ int main(int argc, char *argv[]) {
+@@ -586,9 +748,15 @@ int main(int argc, char *argv[]) {
  #endif // MKXPZ_HAVE_ANGLE
  
      if (win == nullptr && (win = initVideo(conf)) == nullptr) {
@@ -420,7 +489,7 @@ index bff85f8..14db35b 100644
  
      if (!EventThread::allocUserEvents()) {
        showInitError("Error allocating SDL user events");
-@@ -633,7 +770,13 @@ int main(int argc, char *argv[]) {
+@@ -633,7 +801,13 @@ int main(int argc, char *argv[]) {
        return 0;
      }
  
@@ -434,7 +503,7 @@ index bff85f8..14db35b 100644
        showInitError(std::string("Error initializing SDL_sound: ") +
                      Sound_GetError());
        TTF_Quit();
-@@ -697,9 +840,15 @@ int main(int argc, char *argv[]) {
+@@ -697,9 +871,15 @@ int main(int argc, char *argv[]) {
      (void)setupWindowIcon;
  #endif
  
@@ -450,7 +519,7 @@ index bff85f8..14db35b 100644
        showInitError("Could not detect an available audio device.");
        SDL_DestroyWindow(win);
        TTF_Quit();
-@@ -746,7 +895,17 @@ int main(int argc, char *argv[]) {
+@@ -746,7 +926,17 @@ int main(int argc, char *argv[]) {
  #endif
  
      /* Start RGSS thread */
@@ -469,7 +538,7 @@ index bff85f8..14db35b 100644
  
      /* Start event processing */
      eventThread.process(rtData);
-@@ -831,6 +990,16 @@ int main(int argc, char *argv[]) {
+@@ -831,6 +1021,16 @@ int main(int argc, char *argv[]) {
        std::string retArgv = conf.nxrpg.returnTo + " --from-core";
        envSetNextLoad(conf.nxrpg.returnTo.c_str(), retArgv.c_str());
      }

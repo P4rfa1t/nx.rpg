@@ -130,7 +130,14 @@ export class CaseInsensitiveVfsImpl implements CaseInsensitiveVfs {
     const raw = this.fs.readFileSync(actualPath);
     if (!raw) return null;
     let bytes: Uint8Array = raw instanceof Uint8Array ? raw : new Uint8Array(raw);
-    if (this.decryptor.isEncryptedPath(actualPath)) {
+    // Only pre-decrypt when a caller asked for a plain asset path (.png/.ogg/.m4a)
+    // and VFS fell back to an encrypted file (.rpgmvp/.rpgmvo/.png_/...).
+    // When RPG Maker MV/MZ's own Decrypter explicitly requests an encrypted path,
+    // keep the RPGMV header intact so Decrypter.decryptArrayBuffer() does not fail.
+    if (
+      this.decryptor.isEncryptedPath(actualPath) &&
+      !this.decryptor.isEncryptedPath(relativeOrUrlPath)
+    ) {
       bytes = this.decryptor.decryptBuffer(bytes);
     }
     return {
@@ -147,7 +154,13 @@ export class CaseInsensitiveVfsImpl implements CaseInsensitiveVfs {
 
     g.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
       const urlStr = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
-      if (!urlStr.startsWith('http://') && !urlStr.startsWith('https://')) {
+      const isPassThroughScheme =
+        urlStr.startsWith('http://') ||
+        urlStr.startsWith('https://') ||
+        urlStr.startsWith('blob:') ||
+        urlStr.startsWith('data:') ||
+        urlStr.startsWith('romfs:');
+      if (!isPassThroughScheme) {
         const asset = vfs.readAssetBytes(urlStr);
         if (asset) {
           return new Response(asset.bytes as any, {

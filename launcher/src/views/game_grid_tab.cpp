@@ -36,10 +36,12 @@ std::string format_duration_short(std::uint64_t secs) {
 
 }  // namespace
 
-GameGridTab::GameGridTab(BootContext ctx, std::shared_ptr<I18nService> i18n, bool recent_only)
+GameGridTab::GameGridTab(BootContext ctx, std::shared_ptr<I18nService> i18n,
+                         std::shared_ptr<TransferService> transfer, bool recent_only)
     : brls::Box(brls::Axis::COLUMN),
       ctx_(std::move(ctx)),
       i18n_(std::move(i18n)),
+      transfer_(std::move(transfer)),
       recent_only_(recent_only) {
   setGrow(1.0f);
   setPadding(16);
@@ -183,6 +185,21 @@ void GameGridTab::rebuild_rows() {
 }
 
 void GameGridTab::launch_game_with_precheck(const DetectedGame& game) {
+  // A running MTP/FTP server owns USB and network state the core will want;
+  // ask before cutting it off rather than stopping it silently.
+  if (transfer_ && transfer_->any_active()) {
+    auto* dialog = new brls::Dialog(i18n_->translate("transfer.stop_before_launch",
+        "File Transfer is running. Stop USB MTP / LAN FTP before launching a game."));
+    dialog->addButton(i18n_->translate("transfer.stop_and_launch", "Stop Transfer & Launch"),
+                      [this, game]() {
+                        if (transfer_) transfer_->stop_all();
+                        launch_game_with_precheck(game);
+                      });
+    dialog->addButton(i18n_->translate("actions.cancel", "Cancel"), [] {});
+    dialog->open();
+    return;
+  }
+
   LaunchPrecheckResult check = CoreDispatcher::precheck(game, ctx_.memory_mode, ctx_.sd_root);
 
   auto execute_launch = [this, game]() {

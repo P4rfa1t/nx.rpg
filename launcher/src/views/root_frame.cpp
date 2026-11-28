@@ -6,15 +6,18 @@
 #include "launcher/services/config_service.hpp"
 #include "launcher/views/diagnostics_tab.hpp"
 #include "launcher/views/game_grid_tab.hpp"
+#include "launcher/views/transfer_tab.hpp"
 
 namespace nxrpg::launcher::views {
 
 #ifdef NXRPG_HAS_BOREALIS
 
-RootFrame::RootFrame(BootContext ctx, std::shared_ptr<I18nService> i18n)
+RootFrame::RootFrame(BootContext ctx, std::shared_ptr<I18nService> i18n,
+                     std::shared_ptr<TransferService> transfer)
     : brls::AppletFrame(new brls::TabFrame()),
       ctx_(std::move(ctx)),
-      i18n_(std::move(i18n)) {
+      i18n_(std::move(i18n)),
+      transfer_(std::move(transfer)) {
   tab_frame_ = dynamic_cast<brls::TabFrame*>(getContentView());
 
   std::string badge = i18n_->translate("app.full_ram_badge", "Title Takeover: 3.2+ GB OK");
@@ -26,13 +29,19 @@ RootFrame::RootFrame(BootContext ctx, std::shared_ptr<I18nService> i18n)
   setTitle(i18n_->translate("app.title", "nx.rpg") + "  [" + badge + "]");
 
   tab_frame_->addTab(i18n_->translate("tabs.library", "All Games"),
-                     [this]() { return new GameGridTab(ctx_, i18n_, false); });
+                     [this]() { return new GameGridTab(ctx_, i18n_, transfer_, false); });
 
   tab_frame_->addTab(i18n_->translate("tabs.recent", "Recent"),
-                     [this]() { return new GameGridTab(ctx_, i18n_, true); });
+                     [this]() { return new GameGridTab(ctx_, i18n_, transfer_, true); });
 
   tab_frame_->addTab(i18n_->translate("tabs.diagnostics", "Environment & Logs"),
                      [this]() { return new DiagnosticsTab(ctx_, i18n_); });
+
+#if defined(__SWITCH__) || defined(NINTENDO_SWITCH)
+  tab_frame_->addTab(i18n_->translate("tabs.transfer", "File Transfer"), [this]() {
+    return new TransferTab(i18n_, transfer_, ctx_.sd_root);
+  });
+#endif
 
   tab_frame_->addTab(i18n_->translate("tabs.settings", "Global Settings"), [this]() {
     auto* scroll = new brls::ScrollingFrame();

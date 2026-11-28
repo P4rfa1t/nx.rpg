@@ -1,6 +1,6 @@
 name: Release Switch NROs
 
-# Full 4-target build producing the two player-facing zips plus the GPL
+# Full 4-target build producing one Switch install ZIP plus the GPL
 # corresponding-source archive, published as a GitHub Release.
 # Triggered by version tags (v*) or manually. Day-to-day per-target builds
 # live in build-launcher.yml / build-easyrpg.yml / build-nxjs-mvz.yml /
@@ -352,7 +352,7 @@ jobs:
           retention-days: 1
 
   package:
-    name: Package artifacts (launcher / cores zips)
+    name: Package the Switch install ZIP
     runs-on: ubuntu-latest
     needs: [launcher, easyrpg, nxjs-mvz, mkxp-z]
     steps:
@@ -362,100 +362,65 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: nx-rpg-launcher-nro
-          path: pkg-launcher/switch/nx.rpg
+          path: pkg/switch/nx.rpg
 
       - name: Download the three core NROs
         uses: actions/download-artifact@v8
         with:
           pattern: '*-core'
           merge-multiple: true
-          path: pkg-cores/switch/nx.rpg/cores
+          path: pkg/switch/nx.rpg/cores
 
-      - name: Add SD layout README to both zips
+      - name: Create and verify install ZIP
         run: |
           set -euo pipefail
-          mkdir -p pkg-launcher/switch/nx.rpg/cores
-          cp sdcard/switch/nx.rpg/config/global.example.json pkg-launcher/switch/nx.rpg/config/global.example.json 2>/dev/null || true
-          cp LICENSE THIRD_PARTY_LICENSES.md pkg-launcher/switch/nx.rpg/ 2>/dev/null || true
-          for d in games saves rtp fonts config runtime cache; do
-            mkdir -p pkg-cores/switch/nx.rpg/$d pkg-launcher/switch/nx.rpg/$d
-          done
-          {
-            echo "nx.rpg launcher package"
-            echo "======================="
-            echo "Copy the whole 'switch/nx.rpg' folder to the ROOT of your SD card,"
-            echo "then download the 'nx-rpg-cores' artifact and copy its three .nro"
-            echo "files into sdcard:/switch/nx.rpg/cores/."
-            echo ""
-            echo "Launch nx.rpg.nro while holding R (Title Takeover) for full RAM."
-          } > pkg-launcher/switch/nx.rpg/README.txt
-          {
-            echo "nx.rpg core package"
-            echo "==================="
-            echo "Copy the three .nro files into sdcard:/switch/nx.rpg/cores/ on your"
-            echo "SD card (merge with the launcher package from the nx-rpg-launcher"
-            echo "artifact)."
-            echo ""
-            echo "  easyrpg.nro   -> RPG Maker 2000 / 2003"
-            echo "  nxjs-mvz.nro  -> RPG Maker MV / MZ"
-            echo "  mkxp-z.nro    -> RPG Maker XP / VX / VX Ace"
-          } > pkg-cores/switch/nx.rpg/cores/README.txt
-          echo "launcher package:"; find pkg-launcher -type f
-          echo "cores package:"; find pkg-cores -type f
-
-      - name: Zip packages
-        run: |
-          set -euo pipefail
-          if [[ "$GITHUB_REF_NAME" == v* ]]; then
-            LZIP="nx.rpg-${GITHUB_REF_NAME}-launcher.zip"
-            CZIP="nx.rpg-${GITHUB_REF_NAME}-cores.zip"
+          if [[ "$GITHUB_REF_TYPE" == tag ]]; then
+            VERSION="$GITHUB_REF_NAME"
           else
-            LZIP="nx.rpg-launcher.zip"
-            CZIP="nx.rpg-cores.zip"
+            VERSION="v$(sed -nE 's/^project\(nxrpg_launcher VERSION ([0-9.]+) .*/\1/p' launcher/CMakeLists.txt)-ci"
           fi
-          cd pkg-launcher && zip -qr "../$LZIP" switch && cd ..
-          cd pkg-cores && zip -qr "../$CZIP" switch && cd ..
-          sha256sum "$LZIP" "$CZIP"
+          python3 scripts/package-release.py "$VERSION" --install-root pkg/switch/nx.rpg
+          sha256sum "dist/nx.rpg-${VERSION}.zip"
+
+      - name: Upload Switch install ZIP
+        uses: actions/upload-artifact@v7
+        with:
+          name: nx-rpg-switch
+          path: dist/nx.rpg-v*.zip
+          if-no-files-found: error
 
       - name: Assemble GPL corresponding-source archive
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
           set -euo pipefail
-          VERSION="${GITHUB_REF_NAME#v}"
           bash scripts/bootstrap-cores.sh
-          mkdir -p "gpl-src/nx.rpg-v${VERSION}-gpl-sources"
-          DST="gpl-src/nx.rpg-v${VERSION}-gpl-sources"
-          cp third_party/upstreams.lock.json "$DST"/
-          cp -r cores/easyrpg/patches "$DST/easyrpg-patches"
-          cp -r cores/nxjs-mvz/patches  "$DST/nxjs-mvz-patches"
-          cp -r cores/mkxp-z/patches    "$DST/mkxp-z-patches"
-          cp -r cores/mkxp-z/ruby-switch "$DST/mkxp-z-ruby-switch" 2>/dev/null || true
-          # Full upstream source snapshots (GPL-3.0 EasyRPG, GPL-2.0 mkxp-z+Ruby; MIT nx.js included for completeness)
-          mkdir -p "$DST/EasyRPG-Player" "$DST/nx.js" "$DST/mkxp-z"
-          tar -C third_party/EasyRPG-Player --exclude=.git -cf - . | tar -C "$DST/EasyRPG-Player" -xf -
-          tar -C third_party/nx.js --exclude=.git --exclude=node_modules -cf - . | tar -C "$DST/nx.js" -xf -
-          tar -C third_party/mkxp-z --exclude=.git -cf - . | tar -C "$DST/mkxp-z" -xf -
-          cd gpl-src && tar --zstd -cf "../nx.rpg-v${VERSION}-gpl-sources.tar.zst" . && cd ..
-          du -h nx.rpg-v"${VERSION}"-gpl-sources.tar.zst
+          mkdir -p third_party/mkxp-z/subprojects/packagecache
+          RUBY_TARBALL=third_party/mkxp-z/subprojects/packagecache/ruby-3_1_3.tar.gz
+          curl -fsSL https://github.com/ruby/ruby/archive/refs/tags/v3_1_3.tar.gz -o "$RUBY_TARBALL"
+          bash scripts/package-release-sources.sh "$GITHUB_REF_NAME"
 
-      - name: Upload launcher zip artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: nx-rpg-launcher
-          path: nx.rpg*launcher.zip
-
-      - name: Upload cores zip artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: nx-rpg-cores
-          path: nx.rpg*cores.zip
+      - name: Check whether the tag has a release
+        id: release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            echo 'exists=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'exists=false' >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Create GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: steps.release.outputs.exists == 'false'
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            nx.rpg-v*-launcher.zip
-            nx.rpg-v*-cores.zip
-            nx.rpg-v*-gpl-sources.tar.zst
+            dist/nx.rpg-v*.zip
+            dist/nx.rpg-v*-gpl-sources.tar.gz
+          fail_on_unmatched_files: true
+          body: |
+            下载 `nx.rpg-${{ github.ref_name }}.zip`，将其中的 `switch` 文件夹解压到 SD 卡根目录。
+            启动器位于 `switch/nx.rpg/nx.rpg.nro`，三个核心已放在同目录下的 `cores/`。
+            建议按住 R，通过已安装游戏以全内存模式进入 hbmenu 后再打开 nx.rpg。
           generate_release_notes: true

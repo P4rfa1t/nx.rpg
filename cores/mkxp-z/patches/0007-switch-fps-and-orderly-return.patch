@@ -1,0 +1,253 @@
+--- a/src/display/graphics.cpp
++++ b/src/display/graphics.cpp
+@@ -45,6 +45,10 @@
+ #include "input.h"
+ #include "sprite.h"
+ 
++#ifdef __SWITCH__
++#include "nxrpg_fps_overlay.hpp"
++#endif
++
+ #include <SDL.h>
+ #include <SDL_image.h>
+ #include <SDL_timer.h>
+@@ -1029,6 +1033,28 @@
+         scriptBinding->terminate();
+     }
+     
++public:
++    void drawFpsOverlay() {
++#ifdef __SWITCH__
++        if (!threadData->config.displayFPS) return;
++        static nxrpg::FpsOverlay overlay;
++        auto &state = glState;
++        state.scissorTest.pushSet(true);
++        state.scissorBox.push();
++        state.clearColor.push();
++        const int height = winSize.y;
++        overlay.draw(winSize.x, height, [&](int x, int y, int w, int h, bool white) {
++            const float v = white ? 1.f : 0.f;
++            state.clearColor.set(Vec4(v, v, v, 1.f));
++            state.scissorBox.set(IntRect(x, height - y - h, w, h));
++            FBO::clear();
++        });
++        state.clearColor.pop();
++        state.scissorBox.pop();
++        state.scissorTest.pop();
++#endif
++    }
++
+ private:
+     template <typename... Args> void swapGLBufferImpl(const Vec2i &screenSize, TEXFBO &source, int scaleIsSpecial, Args... args) {
+         fpsLimiter.delay();
+@@ -1043,6 +1069,7 @@
+             };
+             FBO::clear();
+             metaBlitBufferFlippedScaled(args...);
++            drawFpsOverlay();
+             SDL_GL_SwapWindow(threadData->window);
+             mkxp_angle_direct3d_resize_callback = nullptr;
+         }
+@@ -1766,6 +1793,7 @@
+         
+         FBO::clear();
+         p->metaBlitBufferFlippedScaled(scaleIsSpecial);
++        p->drawFpsOverlay();
+         SDL_GL_SwapWindow(p->threadData->window);
+         p->fpsLimiter.delay();
+         
+--- a/src/eventthread.cpp
++++ b/src/eventthread.cpp
+@@ -31,6 +31,7 @@
+ #include <al.h>
+ #include <alc.h>
+ #include <alext.h>
++#include <algorithm>
+ #include <cmath>
+ 
+ #include "sharedstate.h"
+@@ -168,6 +169,10 @@
+     int toggleFSMod = rtData.config.anyAltToggleFS ? KMOD_ALT : KMOD_LALT;
+     
+     bool displayingFPS = rtData.config.displayFPS;
++#ifdef __SWITCH__
++    // The Switch has no visible SDL window title. The renderer owns the HUD.
++    displayingFPS = false;
++#endif
+     
+     if (displayingFPS || rtData.config.printFPS)
+         fps.sendUpdates.set();
+@@ -438,7 +443,11 @@
+                         if (name == "RSTICK") return SDL_CONTROLLER_BUTTON_RIGHTSTICK;
+                         return -1;
+                     };
+-                    bool allPressed = !rtData.config.nxrpg.exitCombo.empty();
++                    const auto &combo = rtData.config.nxrpg.exitCombo;
++                    bool allPressed = combo.size() >= 2 &&
++                        std::any_of(combo.begin() + 1, combo.end(), [&](const std::string &name) {
++                            return name != combo.front();
++                        });
+                     for (const auto &bname : rtData.config.nxrpg.exitCombo) {
+                         int idx = mapBtn(bname);
+                         if (idx < 0 || !controllerState.buttons[idx]) {
+@@ -447,6 +456,7 @@
+                         }
+                     }
+                     if (allPressed) {
++                        rtData.rqTerm.set();
+                         terminate = true;
+                     }
+                 }
+--- a/src/eventthread.h
++++ b/src/eventthread.h
+@@ -237,6 +237,9 @@
+ 	/* In response, RGSS thread sets this to confirm
+ 	 * that it received the request and isn't stuck */
+ 	AtomicFlag rqTermAck;
++#ifdef __SWITCH__
++	AtomicFlag rgssFinished;
++#endif
+ 
+ 	/* Set when F12 is pressed */
+ 	AtomicFlag rqReset;
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -52,6 +52,7 @@
+ 
+ #ifdef __SWITCH__
+ #include <switch.h>
++#include <cstdlib>
+ #include <sys/resource.h>
+ #include <cstring>
+ #include <csignal>
+@@ -308,16 +309,33 @@
+ 
+   /* Start script execution */
+   scriptBinding->execute();
++#ifdef __SWITCH__
++  nxrpg_boot("[exit] Ruby returned");
++#endif
+ 
+   threadData->rqTermAck.set();
+   threadData->ethread->requestTerminate();
+ 
+   SharedState::finiInstance();
+-
++#ifdef __SWITCH__
++  nxrpg_boot("[exit] RGSS resources released");
++#endif
++
++  alcMakeContextCurrent(nullptr);
+   alcDestroyContext(alcCtx);
+ 
+   return 0;
+ }
++
++#ifdef __SWITCH__
++static int nxrpgRgssThread(void *userdata) {
++  auto *data = static_cast<RGSSThreadData *>(userdata);
++  const int result = rgssThreadFun(userdata);
++  data->rgssFinished.set();
++  data->ethread->requestTerminate();
++  return result;
++}
++#endif
+ 
+ static void printRgssVersion(int ver) {
+   const char *const makers[] = {"", "XP", "VX", "VX Ace"};
+@@ -932,18 +950,55 @@
+     /* nx.rpg: the RGSS thread runs ruby_init() and the whole script VM;
+      * SDL/libnx default thread stacks are far too small for Ruby (canary
+      * smash inside ruby_init). Give it an explicit 8 MiB. */
++#ifdef __SWITCH__
++    auto rgssEntry = nxrpgRgssThread;
++#else
++    auto rgssEntry = rgssThreadFun;
++#endif
+     SDL_Thread *rgssThread =
+-        SDL_CreateThreadWithStackSize(rgssThreadFun, "rgss", 8 * 1024 * 1024, &rtData);
++        SDL_CreateThreadWithStackSize(rgssEntry, "rgss", 8 * 1024 * 1024, &rtData);
+ #ifdef __SWITCH__
+     nxrpg_boot("[boot] RGSS thread started, event loop entered");
+ #endif
+ 
+     /* Start event processing */
+-    eventThread.process(rtData);
++    if (rgssThread) eventThread.process(rtData);
++#ifdef __SWITCH__
++    nxrpg_boot("[exit] SDL event loop returned, requesting RGSS stop");
++    const auto restoreClock = [&]() {
++      if (nxrpg_clkrst_active) {
++        clkrstSetClockRate(&nxrpg_clkrst_session, 1020000000u);
++        clkrstCloseSession(&nxrpg_clkrst_session);
++        clkrstExit();
++      }
++    };
++    if (conf.nxrpg.active && !conf.nxrpg.returnTo.empty() && envHasNextLoad() &&
++        access(conf.nxrpg.returnTo.c_str(), F_OK) == 0) {
++      const std::string retArgv = conf.nxrpg.returnTo + " --from-core";
++      const Result rc = envSetNextLoad(conf.nxrpg.returnTo.c_str(), retArgv.c_str());
++      nxrpg_boot("[exit] launcher chainload result=0x%x", rc);
++    }
++#endif
+ 
+     /* Request RGSS thread to stop */
+     rtData.rqTerm.set();
+ 
++#ifdef __SWITCH__
++    if (rgssThread) {
++      const Uint32 start = SDL_GetTicks();
++      while (!rtData.rgssFinished && SDL_GetTicks() - start < 5000u)
++        SDL_Delay(10);
++      if (!rtData.rgssFinished) {
++        nxrpg_boot("[exit] RGSS shutdown timed out (ack=%d); skipping game cleanup", int(bool(rtData.rqTermAck)));
++        restoreClock();
++        // libnx routes _Exit through the homebrew loader's exit callback.
++        // Avoid destructing SDL/OpenAL objects still in use by the worker.
++        std::_Exit(0);
++      }
++      SDL_WaitThread(rgssThread, nullptr);
++      nxrpg_boot("[exit] RGSS thread joined");
++    }
++#else
+     /* Wait for RGSS thread response */
+     for (int i = 0; i < 1000; ++i) {
+       /* We can stop waiting when the request was ack'd */
+@@ -965,6 +1020,7 @@
+           SDL_MESSAGEBOX_ERROR, conf.game.title.c_str(),
+           std::string("The RGSS script seems to be stuck. "+conf.game.title+" will now force quit.").c_str(),
+           win);
++#endif
+ 
+     if (!rtData.rgssErrorMsg.empty()) {
+       Debug() << rtData.rgssErrorMsg;
+@@ -994,6 +1050,9 @@
+     Debug() << "Shutting down.";
+ 
+     alcCloseDevice(alcDev);
++#ifdef __SWITCH__
++    nxrpg_boot("[exit] OpenAL device closed");
++#endif
+     SDL_DestroyWindow(win);
+ 
+ #if defined(__WIN32__)
+@@ -1010,17 +1069,9 @@
+     SDL_Quit();
+ 
+ #ifdef __SWITCH__
+-    if (nxrpg_clkrst_active) {
+-      clkrstSetClockRate(&nxrpg_clkrst_session, 1020000000u);
+-      clkrstCloseSession(&nxrpg_clkrst_session);
+-      clkrstExit();
+-    }
++    nxrpg_boot("[exit] SDL shut down");
++    restoreClock();
+     romfsExit();
+-    if (conf.nxrpg.active && !conf.nxrpg.returnTo.empty() && envHasNextLoad() &&
+-        access(conf.nxrpg.returnTo.c_str(), F_OK) == 0) {
+-      std::string retArgv = conf.nxrpg.returnTo + " --from-core";
+-      envSetNextLoad(conf.nxrpg.returnTo.c_str(), retArgv.c_str());
+-    }
+     }  /* end guarded main body */
+     catch (const Exception &nxrpg_exc) {
+       nxrpg_boot("[nx.rpg][FATAL][core=mkxp-z][code=EXC] %s", nxrpg_exc.msg.c_str());

@@ -5,3 +5,4 @@
 0004-switch-swkbd-text-input-binding.patch
 0005-switch-sdl2-image-disable-jxl.patch
 0006-switch-boot-trace-diagnostics.patch
+0007-switch-fps-and-orderly-return.patch

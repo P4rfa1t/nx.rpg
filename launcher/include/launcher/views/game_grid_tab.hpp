@@ -6,6 +6,7 @@
 #include "launcher/app.hpp"
 #include "launcher/services/i18n_service.hpp"
 #include "launcher/services/library_service.hpp"
+#include "launcher/services/transfer_service.hpp"
 #include "nxrpg/types.hpp"
 
 #ifdef NXRPG_HAS_BOREALIS
@@ -19,7 +20,8 @@ namespace nxrpg::launcher::views {
 #ifdef NXRPG_HAS_BOREALIS
 class GameGridTab : public brls::Box {
  public:
-  GameGridTab(BootContext ctx, std::shared_ptr<I18nService> i18n, bool recent_only);
+  GameGridTab(BootContext ctx, std::shared_ptr<I18nService> i18n,
+              std::shared_ptr<TransferService> transfer, bool recent_only);
   ~GameGridTab() override = default;
 
   void set_engine_filter(EngineKind filter_or_unknown_for_all);
@@ -31,6 +33,7 @@ class GameGridTab : public brls::Box {
 
   BootContext ctx_;
   std::shared_ptr<I18nService> i18n_;
+  std::shared_ptr<TransferService> transfer_;
   bool recent_only_ = false;
   EngineKind filter_ = EngineKind::Unknown;
   std::vector<LibraryEntry> entries_;

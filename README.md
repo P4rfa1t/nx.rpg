@@ -28,10 +28,8 @@
 
 ## 📦 安装（玩家）
 
-1. 从 [Releases](https://github.com/P4rfa1t/nx.rpg/releases) 下载最新版本的两个压缩包（或从 [Actions](https://github.com/P4rfa1t/nx.rpg/actions) 页面的 Artifacts 下载）：
-   - `nx.rpg-v*-launcher.zip` → 前端 `nx.rpg.nro`（含 SD 卡目录结构与说明）
-   - `nx.rpg-v*-cores.zip` → 三个核心 `easyrpg.nro` / `nxjs-mvz.nro` / `mkxp-z.nro`（合集一个包）
-2. 按下述结构放入 SD 卡（NRO 放对应目录，其余目录会自动生成示例）：
+1. 下载 `nx.rpg-vX.Y.Z.zip`，其中包含启动器和三个核心。[GitHub Releases](https://github.com/P4rfa1t/nx.rpg/releases)
+2. 将压缩包内的 `switch` 文件夹解压到 SD 卡根目录。首次运行会创建存档、日志等运行目录。完整目录结构如下。
 
    ```text
    sdcard:/
@@ -53,6 +51,15 @@
 
 3. **务必用全内存模式启动**：从相册 hbmenu 启动会进入 Applet 模式（~440 MB，V8 JIT 与大型 RGSS 堆受限）；按住 **R** 键启动任意已安装游戏（Title Takeover）即获得 ~3.2 GB 全内存。前端标题栏会显示当前模式。
 4. 放入游戏后启动 `nx.rpg.nro`，前端自动识别引擎世代并匹配核心，按 A 启动；游戏内按 **L + R + ＋** 返回前端。
+
+### 不拔 SD 卡传输游戏
+
+在 Launcher 的 **文件传输** 标签打开对应开关（可同时开启）：
+
+- **USB MTP**：用支持数据传输的 USB 线连接可信电脑，在支持 MTP 的文件管理器里打开 `nx.rpg`。新游戏放到设备里的 `games/` 文件夹。
+- **局域网 FTP**：在同一个可信局域网内，使用支持被动模式的 FTP 客户端连接页面显示的地址（端口 `5000`），匿名登录即可，无需用户名和密码。FTP 是明文协议，请勿转发端口或在公共网络使用。上传不会覆盖同名文件。
+
+两个开关切换页签后仍会继续运行，直到手动关闭或退出 nx.rpg；启动游戏前会提示先关闭传输。两种方式看到的根目录都是 `switch/nx.rpg/`，可以访问其中的游戏、配置、存档、日志和核心，但不能访问这一级目录以外的 SD 卡内容。传输过程中开关下方会显示当前文件名与实时速率；传完后关闭开关，回到游戏库重新扫描。
 
 <details>
 <summary>📁 游戏目录形态与单文件归档（传输慢的解法）</summary>
@@ -86,7 +93,7 @@ docker run --rm -v "$(pwd):/work" -w /work --dns 223.5.5.5 nxrpg-nxjs-build:late
 
 # 4b. 或者直接推 main —— 每个构建目标有独立 workflow（按路径过滤，只重编译改动的目标）：
 #      build-launcher.yml / build-easyrpg.yml / build-nxjs-mvz.yml / build-mkxp-z.yml
-#      打 v* tag 会触发 release.yml：全量构建 + 两个 zip + GPL 源码归档 → GitHub Releases
+#      打 v* tag 会触发 release.yml：全量构建 + 单个安装 ZIP + GPL 源码归档 → GitHub Releases
 ```
 
 构建脚本特性：每次从干净上游树按序重放补丁队列（`git reset --hard` + `git clean`），产物直接落到 `sdcard/switch/nx.rpg/` 对应位置。工具链镜像、Meson 交叉文件与已知坑位清单见 [docs/BUILD_AND_CI.md](docs/BUILD_AND_CI.md)。
@@ -113,7 +120,8 @@ docker run --rm -v "$(pwd):/work" -w /work --dns 223.5.5.5 nxrpg-nxjs-build:late
 - [x] Phase 5 — CI/CD：四作业并行构建 + 全仓契约校验 workflow
 - [ ] 实机全面验收（MV/MZ Effekseer、插件重度游戏）
 - [ ] 插件兼容性迭代（YEP / VisuStella / Galv 常用插件适配）
-- [ ] 一键发布打包（Release zip + GPL 源码捆绑）与兼容性数据库
+- [x] 一键发布打包（单个安装 ZIP 与 GPL 源码包）
+- [ ] 兼容性数据库
 
 ## ⚠️ 使用须知
 

@@ -11,19 +11,24 @@ export interface SwitchInputBridge {
   openSoftwareKeyboard(initialText: string, maxLength: number): Promise<string | null>;
 }
 
-const BUTTON_NAME_TO_GAMEPAD_INDEX: Record<string, number> = {
-  A: 0,
-  B: 1,
-  X: 2,
-  Y: 3,
-  LSTICK: 4,
-  RSTICK: 5,
-  L: 6,
-  R: 7,
-  ZL: 8,
-  ZR: 9,
-  PLUS: 10,
-  MINUS: 11,
+// nx.js exposes standard Web Gamepad indices, independent of Switch HID bit order.
+const BUTTON_NAME_TO_GAMEPAD_INDEX: Readonly<Record<string, number>> = {
+  B: 0,
+  A: 1,
+  Y: 2,
+  X: 3,
+  L: 4,
+  R: 5,
+  ZL: 6,
+  ZR: 7,
+  MINUS: 8,
+  PLUS: 9,
+  LSTICK: 10,
+  RSTICK: 11,
+  UP: 12,
+  DOWN: 13,
+  LEFT: 14,
+  RIGHT: 15,
 };
 
 export function isExitComboPressed(
@@ -41,13 +46,24 @@ export function isExitComboPressed(
 }
 
 export class SwitchInputBridgeImpl implements SwitchInputBridge {
-  private timerId: any = null;
-  private exitTriggered = false;
+  private frameId: number | null = null;
+  private readonly preventRuntimeExit = (event: Event) => event.preventDefault();
 
   install(manifest: LaunchManifest, onExitRequested: () => void): void {
     const g = globalThis as any;
+    // nx.js dispatches beforeunload on + before running this frame's callbacks.
+    g.addEventListener?.('beforeunload', this.preventRuntimeExit);
     const swapAB = manifest.input.swapConfirmCancel;
-    const exitCombo = manifest.input.exitCombo?.length >= 2 ? manifest.input.exitCombo : ['L', 'R', 'PLUS'];
+    const confirmButton = swapAB ? 'B' : 'A';
+    const cancelButton = swapAB ? 'A' : 'B';
+    const configuredCombo = [...new Set(manifest.input.exitCombo)];
+    const exitCombo = configuredCombo.length >= 2 ? configuredCombo : ['L', 'R', 'PLUS'];
+
+    // The bridge emits keyboard events for gameplay. Polling the same raw pad
+    // inside RPG Maker would apply a second, sometimes contradictory mapping.
+    if (typeof g.Input?._pollGamepads === 'function') {
+      g.Input._pollGamepads = () => {};
+    }
 
     const prevKeys = new Set<string>();
     const dispatchKey = (type: 'keydown' | 'keyup', key: string, keyCode: number) => {
@@ -88,43 +104,42 @@ export class SwitchInputBridgeImpl implements SwitchInputBridge {
       });
     }
 
-    this.timerId = setInterval(() => {
-      if (this.exitTriggered) return;
+    const pollFrame = () => {
+      if (this.frameId === null) return;
+      // install() runs before game startup. Keep input ahead of game updates
+      // by queuing the next poll before dispatching this frame's key events.
+      this.frameId = g.requestAnimationFrame(pollFrame);
       const pads = typeof g.navigator?.getGamepads === 'function' ? g.navigator.getGamepads() : [];
-      const pad = pads?.[0];
-      if (!pad) return;
+      const pad = pads?.find((candidate: Gamepad | null) => candidate?.connected);
 
-      if (isExitComboPressed(pad.buttons, exitCombo)) {
-        this.exitTriggered = true;
+      if (pad && isExitComboPressed(pad.buttons, exitCombo)) {
         this.dispose();
         onExitRequested();
         return;
       }
 
-      const btn = (idx: number) => Boolean(pad.buttons[idx]?.pressed);
-      const axX = pad.axes?.[0] ?? 0;
-      const axY = pad.axes?.[1] ?? 0;
+      const btn = (name: string) => Boolean(pad?.buttons[BUTTON_NAME_TO_GAMEPAD_INDEX[name]]?.pressed);
+      const axX = pad?.axes?.[0] ?? 0;
+      const axY = pad?.axes?.[1] ?? 0;
 
-      syncKey(btn(13) || axX < -0.45, 'ArrowLeft', 37);
-      syncKey(btn(12) || axY < -0.45, 'ArrowUp', 38);
-      syncKey(btn(14) || axX > 0.45, 'ArrowRight', 39);
-      syncKey(btn(15) || axY > 0.45, 'ArrowDown', 40);
+      syncKey(btn('LEFT') || axX < -0.45, 'ArrowLeft', 37);
+      syncKey(btn('UP') || axY < -0.45, 'ArrowUp', 38);
+      syncKey(btn('RIGHT') || axX > 0.45, 'ArrowRight', 39);
+      syncKey(btn('DOWN') || axY > 0.45, 'ArrowDown', 40);
 
-      const confirm = swapAB ? btn(1) : btn(0);
-      const cancel = swapAB ? btn(0) : btn(1);
-      syncKey(confirm, 'Enter', 13);
-      syncKey(cancel, 'Escape', 27);
-      syncKey(btn(3), 'Shift', 16); // Y -> Shift (dash)
-      syncKey(btn(6), 'PageUp', 33); // L
-      syncKey(btn(7), 'PageDown', 34); // R
-      syncKey(btn(8), 'Control', 17); // ZL -> Ctrl (skip text)
+      const editWin = g.SceneManager?._scene?._editWindow;
+      const useSwkbd = manifest.runtime.enableSoftwareKeyboard &&
+        typeof editWin?.name === 'function' && typeof editWin.maxLength === 'function';
+      syncKey(btn(confirmButton), 'Enter', 13);
+      syncKey(btn(cancelButton) || (btn('X') && !useSwkbd), 'Escape', 27);
+      syncKey(btn('Y'), 'Shift', 16);
+      syncKey(btn('L'), 'PageUp', 33);
+      syncKey(btn('R'), 'PageDown', 34);
+      syncKey(btn('ZL'), 'Control', 17);
 
-      // In RPG Maker MV/MZ Scene_Name, pressing X (button 2) triggers native Switch swkbd
-      if (btn(2) && !prevKeys.has('__SWKBD_X__') && manifest.runtime.enableSoftwareKeyboard) {
+      if (btn('X') && !prevKeys.has('__SWKBD_X__')) {
         prevKeys.add('__SWKBD_X__');
-        const scene = g.SceneManager?._scene;
-        const editWin = scene?._editWindow;
-        if (editWin && typeof editWin.name === 'function' && typeof editWin.maxLength === 'function') {
+        if (useSwkbd) {
           const initial = String(editWin.name() ?? '');
           const maxLen = Number(editWin.maxLength() ?? 12);
           void this.openSoftwareKeyboard(initial, maxLen).then((entered) => {
@@ -135,17 +150,19 @@ export class SwitchInputBridgeImpl implements SwitchInputBridge {
             }
           });
         }
-      } else if (!btn(2)) {
+      } else if (!btn('X')) {
         prevKeys.delete('__SWKBD_X__');
       }
-    }, 16);
+    };
+    this.frameId = g.requestAnimationFrame(pollFrame);
   }
 
   dispose(): void {
-    if (this.timerId !== null) {
-      clearInterval(this.timerId);
-      this.timerId = null;
+    if (this.frameId !== null) {
+      cancelAnimationFrame(this.frameId);
+      this.frameId = null;
     }
+    globalThis.removeEventListener?.('beforeunload', this.preventRuntimeExit);
   }
 
   async openSoftwareKeyboard(initialText: string, maxLength: number): Promise<string | null> {

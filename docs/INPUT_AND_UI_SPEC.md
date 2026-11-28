@@ -6,20 +6,20 @@
 
 ## 1. 跨世代手柄标准按键矩阵（Joy-Con 双持 / Pro 手柄）
 
-默认采用任天堂原生直觉布局（**`A` = 确认，`B` = 取消**）。若玩家在 `global.json` 或单游戏配置中开启 `"swapConfirmCancel": true`，则各核心统一在输入桥接层将 `A` 与 `B` 互换。
+默认采用 **`A` = 确认，`B` = 取消**。若玩家在 `global.json` 或单游戏配置中开启 `"swapConfirmCancel": true`，各核心会互换 A/B 功能。
 
 | Switch 物理输入 | Borealis 前端 (`nx.rpg.nro`) | EasyRPG (`rm2k` / `rm2k3`) | mkxp-z (`rmxp` / `rmvx` / `rmvxa`) | nxjs-mvz (`rmmv` / `rmmz`) |
 | :--- | :--- | :--- | :--- | :--- |
 | **十字键 / 左摇杆** | 焦点移动 | 角色移动 / 菜单光标 | `Input::UP / DOWN / LEFT / RIGHT` | `up / down / left / right` (`Arrow*`) |
-| **`A` 键** | 进入 / 启动游戏 | 确认 (`Decision` / `Z` / `Enter`) | `Input::C` (`Enter` / `Space` / `Z`) | `ok` (`Enter` / `Z`) |
-| **`B` 键** | 返回上一级 | 取消 / 菜单 (`Cancel` / `X` / `Esc`) | `Input::B` (`Esc` / `X` / `Insert`) | `escape` (`Escape` / `X` / `Insert`) |
+| **`A` 键** | 进入 / 启动游戏 | 确认 (`Decision` / `Z` / `Enter`) | `Input::C` (`Enter` / `Space` / `Z`) | 确认 (`Enter`) |
+| **`B` 键** | 返回上一级 | 取消 / 菜单 (`Cancel` / `X` / `Esc`) | `Input::B` (`Esc` / `X` / `Insert`) | 取消 / 菜单 (`Escape`) |
 | **`X` 键** | 刷新 / 收藏切换 | 菜单 / 辅助取消（起名时唤起软键盘） | `Input::Y` (`S` 键) | `menu` / 快捷菜单 (`X` / 唤起软键盘) |
 | **`Y` 键** | 打开单游戏设置抽屉 | 按住加速行走 / `Shift` | `Input::A` (`Shift` 奔跑/加速) | `shift` (`Shift` 奔跑) |
 | **`L` 键** | 上一页 Tab | 上翻页 (`PageUp` / `Q`) | `Input::L` (`Q` / `PageUp`) | `pageup` (`Q` / `PageUp`) |
 | **`R` 键** | 下一页 Tab | 下翻页 / 帧率开关 (`PageDown` / `W`) | `Input::R` (`W` / `PageDown`) | `pagedown` (`W` / `PageDown`) |
 | **`ZL` 键** | 按引擎向下筛选 | 调试行走穿透（仅测试模式）/ 辅助键 `Ctrl` | `Input::X` (`A` 键 / `Ctrl` 跳过文本) | `control` (`Control` 跳过已读对话) |
 | **`ZR` 键** | 按引擎向上筛选 | 按住倍速快进 (`Fast-Forward`) | 按住倍速帧率切换（可选） | `tab` / 辅助功能键 |
-| **`+` (Plus)** | 全局设置快捷入口 | EasyRPG 内置设置菜单 | 唤出键位提示 / `F1` 设置面板 | 暂停 / 快捷菜单辅助 |
+| **`+` (Plus)** | 全局设置快捷入口 | EasyRPG 内置设置菜单 | 唤出键位提示 / `F1` 设置面板 | 用于退出组合键 |
 | **`-` (Minus)** | 查看上次运行日志 | 游戏软重置 (`Reset`) | `F2` 显示/隐藏 FPS（长按 `F12` 软重置） | 切换 FPS 浮层显示 |
 | **组合键 `L + R + +`** | — | **安全保存缓冲并退出回 `nx.rpg.nro`** | **安全保存缓冲并退出回 `nx.rpg.nro`** | **安全保存缓冲并退出回 `nx.rpg.nro`** |
 

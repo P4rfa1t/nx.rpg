@@ -70,9 +70,16 @@ if(EXISTS "${NXRPG_BOREALIS_DIR}/library/CMakeLists.txt" AND (PLATFORM_SWITCH OR
     src/views/game_grid_tab.cpp
     src/views/game_detail_activity.cpp
     src/views/diagnostics_tab.cpp
+    src/views/transfer_tab.cpp
+    src/services/transfer_service.cpp
   )
   if(PLATFORM_SWITCH)
-    list(APPEND LAUNCHER_GUI_SRCS "${NXRPG_BOREALIS_DIR}/library/lib/platforms/switch/switch_wrapper.c")
+    list(APPEND LAUNCHER_GUI_SRCS
+      "${NXRPG_BOREALIS_DIR}/library/lib/platforms/switch/switch_wrapper.c"
+      src/transfer/ftpd.c
+      src/transfer/mtp_core.c
+      src/transfer/mtp_usb.c
+    )
   endif()
 
   add_executable(nxrpg_launcher ${LAUNCHER_GUI_SRCS})
@@ -104,6 +111,7 @@ if(EXISTS "${NXRPG_BOREALIS_DIR}/library/CMakeLists.txt" AND (PLATFORM_SWITCH OR
       COMMAND "${CMAKE_COMMAND}" -E copy_directory "${NXRPG_BOREALIS_DIR}/resources" "${ROMFS_STAGE}"
       COMMAND "${CMAKE_COMMAND}" -E remove_directory "${ROMFS_STAGE}/font"
       COMMAND "${CMAKE_COMMAND}" -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/resources/i18n" "${ROMFS_STAGE}/nxrpg_i18n"
+      COMMAND "${CMAKE_COMMAND}" -E copy "${CMAKE_CURRENT_SOURCE_DIR}/src/transfer/LICENSE.rpynx" "${ROMFS_STAGE}/LICENSE.rpynx"
       COMMAND "${NX_ELF2NRO_EXE}" "${CMAKE_CURRENT_BINARY_DIR}/nx.rpg.elf" "${CMAKE_CURRENT_BINARY_DIR}/nx.rpg.nro"
               "--icon=${CMAKE_CURRENT_SOURCE_DIR}/../assets/icon.jpg"
               "--nacp=${CMAKE_CURRENT_BINARY_DIR}/nx.rpg.nacp"

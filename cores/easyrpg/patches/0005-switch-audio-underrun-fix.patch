@@ -1,25 +1,124 @@
+diff --git a/src/audio_generic.cpp b/src/audio_generic.cpp
+index ac516de..49a39b9 100644
+--- a/src/audio_generic.cpp
++++ b/src/audio_generic.cpp
+@@ -17,6 +17,8 @@
+ 
+ #include "system.h"
+ 
++#include <algorithm>
++#include <cmath>
+ #include <cstring>
+ #include <cassert>
+ #include <memory>
+@@ -473,24 +475,19 @@ void GenericAudio::Decode(uint8_t* output_buffer, int buffer_length) {
+ 	}
+ 
+ 	if (channel_active) {
+-		if (total_volume > 1.0) {
+-			float threshold = 0.8f;
+-			for (unsigned i = 0; i < (unsigned)(samples_per_frame * 2); i++) {
+-				float sample = mixer_buffer[i];
+-				float sign = (sample < 0) ? -1.0 : 1.0;
+-				sample /= sign;
+-				//dynamic range compression
+-				if (sample > threshold) {
+-					sample_buffer[i] = sign * 32768.0 * (threshold + (1.0 - threshold) * (sample - threshold) / (total_volume - threshold));
+-				} else {
+-					sample_buffer[i] = sign * sample * 32768.0;
+-				}
+-			}
+-		} else {
+-			//No dynamic range compression necessary
+-			for (unsigned i = 0; i < (unsigned)(samples_per_frame * 2); i++) {
+-				sample_buffer[i] = mixer_buffer[i] * 32768.0;
++		(void)total_volume;
++		// nx.rpg: replace discontinuous block-level DRC + un-clamped int16 cast
++		// with continuous per-sample soft limiting + clamp so SE starts/stops
++		// never pump BGM volume or overflow +32768 into -32768 clicks.
++		for (unsigned i = 0; i < (unsigned)(samples_per_frame * 2); i++) {
++			float sample = mixer_buffer[i];
++			float abs_s = std::fabs(sample);
++			if (abs_s > 0.85f) {
++				float sign = (sample < 0.0f) ? -1.0f : 1.0f;
++				sample = sign * (0.85f + 0.15f * std::tanh((abs_s - 0.85f) / 0.15f));
+ 			}
++			int32_t scaled = static_cast<int32_t>(std::lrintf(sample * 32767.0f));
++			sample_buffer[i] = static_cast<int16_t>(std::clamp<int32_t>(scaled, -32768, 32767));
+ 		}
+ 
+ 		memcpy(output_buffer, sample_buffer.data(), buffer_length);
+diff --git a/src/audio_resampler.h b/src/audio_resampler.h
+index c6e55b9..a5d27ad 100644
+--- a/src/audio_resampler.h
++++ b/src/audio_resampler.h
+@@ -275,7 +275,7 @@ private:
+ 	 * The size of the buffer defines the number of calls to the resampling algorithmn
+ 	 * (In the cpp file sizeof is used therefore it can be adjusted to fit the available memory)
+ 	 */
+-	uint8_t internal_buffer[256*sizeof(float)];
++	uint8_t internal_buffer[2048*sizeof(float)];
+ 
+ 	bool mono_to_stereo_resample = false;
+ };
 diff --git a/src/platform/switch/audio.cpp b/src/platform/switch/audio.cpp
-index f5130a1..c2fe9d2 100644
+index f5130a1..1ca2532 100644
 --- a/src/platform/switch/audio.cpp
 +++ b/src/platform/switch/audio.cpp
-@@ -31,7 +31,10 @@
+@@ -31,23 +31,27 @@
  namespace {
  	const int samplerate = 48000;
  	const int bytes_per_sample = 4;
--	const int samples_per_buf = 4096;
-+	/* nx.rpg: 4096 samples (~85 ms) underran whenever a streamed OGG/MP3
-+	 * hit an SD-card read stall; 8192 (~170 ms) keeps the audout queue
-+	 * fed through those hiccups. */
-+	const int samples_per_buf = 8192;
++	/* nx.rpg: use 4 x 4096-sample buffers (~341 ms total queue, 3 buffers =
++	 * 256 ms always ahead while 1 is being decoded/mutex-locked) so SD I/O
++	 * or SE open/decode on Core 0 never causes an audout underrun. */
++	const int num_buffers = 4;
+ 	const int samples_per_buf = 4096;
  	const int buf_size = samples_per_buf * bytes_per_sample;
  	NxAudio* instance = nullptr;
  }
-@@ -86,7 +89,7 @@ NxAudio::NxAudio(const Game_ConfigAudio& cfg) :
+ 
+ void switch_audio_thread(void*) {
+-	uint8_t *buffer1 = (uint8_t*)memalign(0x1000, ALIGN_TO(buf_size, 0x1000));
+-	uint8_t *buffer2 = (uint8_t*)memalign(0x1000, ALIGN_TO(buf_size, 0x1000));
++	uint8_t *buffers[num_buffers];
++	for (int i = 0; i < num_buffers; i++) {
++		buffers[i] = (uint8_t*)memalign(0x1000, ALIGN_TO(buf_size, 0x1000));
++	}
+ 	uint32_t released_count;
+ 	
+-	AudioOutBuffer source_buffers[2], *released_buffer;
++	AudioOutBuffer source_buffers[num_buffers], *released_buffer;
+ 	
+ 	// Init audio buffers
+-	source_buffers[0].buffer = buffer1;
+-	source_buffers[1].buffer = buffer2;
+-	
+-	for (int i = 0; i < 2; i++){
++	for (int i = 0; i < num_buffers; i++){
++		source_buffers[i].buffer = buffers[i];
+ 		source_buffers[i].next = NULL;
+ 		source_buffers[i].buffer_size = buf_size;
+ 		source_buffers[i].data_size = buf_size;
+@@ -62,8 +66,9 @@ void switch_audio_thread(void*) {
+ 		// A pretty bad way to close thread
+ 		if (instance->termStream) {
+ 			instance->termStream = false;
+-			free(buffer1);
+-			free(buffer2);
++			for (int i = 0; i < num_buffers; i++) {
++				free(buffers[i]);
++			}
+ 			return;
+ 		}
+ 
+@@ -86,7 +91,8 @@ NxAudio::NxAudio(const Game_ConfigAudio& cfg) :
  	
  	mutexInit(&audio_mutex);
  
 -	threadCreate(&audio_thread, switch_audio_thread, NULL, NULL, 0x10000, 0x2B, -2);
-+	threadCreate(&audio_thread, switch_audio_thread, NULL, NULL, 0x20000, 0x2B, -2);
++	// Run on Core 2 (isolated from Core 0 UI/GL/SD work) with elevated priority
++	threadCreate(&audio_thread, switch_audio_thread, NULL, NULL, 0x20000, 0x2A, 2);
  	
  	SetFormat(samplerate, AudioDecoder::Format::S16, 2);
  

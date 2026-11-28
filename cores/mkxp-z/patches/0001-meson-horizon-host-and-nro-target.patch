@@ -259,10 +259,10 @@ index 971cda7..ae3fc56 100644
              return 'libdecor-0.so.0'
 diff --git a/subprojects/packagefiles/ruby-3.1-horizon-switch.patch b/subprojects/packagefiles/ruby-3.1-horizon-switch.patch
 new file mode 100644
-index 0000000..667d2b4
+index 0000000..a4cdb9e
 --- /dev/null
 +++ b/subprojects/packagefiles/ruby-3.1-horizon-switch.patch
-@@ -0,0 +1,275 @@
+@@ -0,0 +1,326 @@
 +diff -ruN a/ruby-3_1_3/cont.c b/ruby-3_1_3/cont.c
 +--- a/cont.c	2022-11-24 10:20:31.000000000 +0000
 ++++ b/cont.c	2026-11-24 11:05:44.663125592 +0000
@@ -538,8 +538,59 @@ index 0000000..667d2b4
 + }
 + 
 + #ifdef RB_THREAD_T_HAS_NATIVE_ID
++diff -ruN a/ruby-3_1_3/eval.c b/ruby-3_1_3/eval.c
++--- a/eval.c	2022-11-24 10:20:31.000000000 +0000
+++++ b/eval.c	2026-11-26 07:40:45.990414588 +0000
++@@ -61,6 +61,26 @@
++     (!SPECIAL_CONST_P(obj) && \
++      (BUILTIN_TYPE(obj) == T_CLASS || BUILTIN_TYPE(obj) == T_MODULE))
++ 
+++#ifdef __SWITCH__
+++#include <stdarg.h>
+++#include <stdio.h>
+++#include <unistd.h>
+++static void
+++nxrpg_ruby_trace(const char *fmt, ...)
+++{
+++    FILE *fp = fopen("sdmc:/switch/nx.rpg/logs/mkxp-boot.log", "a");
+++    if (!fp) return;
+++    va_list ap;
+++    va_start(ap, fmt);
+++    vfprintf(fp, fmt, ap);
+++    va_end(ap);
+++    fputc('\n', fp);
+++    fflush(fp);
+++    fsync(fileno(fp));
+++    fclose(fp);
+++}
+++#endif
+++
++ int
++ ruby_setup(void)
++ {
++@@ -90,6 +110,9 @@
++ 	GET_VM()->running = 1;
++     }
++     EC_POP_TAG();
+++#ifdef __SWITCH__
+++    nxrpg_ruby_trace("[ruby] ruby_setup done state=%d", (int)state);
+++#endif
++ 
++     return state;
++ }
++@@ -99,6 +122,10 @@
++ {
++     int state = ruby_setup();
++     if (state) {
+++#ifdef __SWITCH__
+++        nxrpg_ruby_trace("[ruby][FATAL] ruby_setup returned state=%d", state);
+++        error_print(GET_EC());
+++#endif
++         if (RTEST(ruby_debug))
++             error_print(GET_EC());
++ 	exit(EXIT_FAILURE);
 diff --git a/subprojects/packagefiles/ruby-3.1/meson.build b/subprojects/packagefiles/ruby-3.1/meson.build
-index 05979e8..7cdf13d 100644
+index 05979e8..1a62bf8 100644
 --- a/subprojects/packagefiles/ruby-3.1/meson.build
 +++ b/subprojects/packagefiles/ruby-3.1/meson.build
 @@ -36,6 +36,68 @@ ruby_deps = [
@@ -632,7 +683,7 @@ index 05979e8..7cdf13d 100644
                  'CC=' + run_command(subproject('common').get_variable('quotetool'), meson.get_compiler('c').cmd_array(), check: true).stdout().strip(),
                  'CXX=' + run_command(subproject('common').get_variable('quotetool'), meson.get_compiler('cpp').cmd_array(), check: true).stdout().strip(),
                  'AR=' + run_command(subproject('common').get_variable('quotetool'), subproject('common').get_variable('ar'), check: true).stdout().strip(),
-@@ -101,7 +171,24 @@ ruby = declare_dependency(
+@@ -101,7 +171,25 @@ ruby = declare_dependency(
                  'rb_cv_gcc_sync_builtins': 'no',
                  'rb_cv_prog_gnu_ld': subproject('common').get_variable('c_linker_is_gnu') ? 'yes' : 'no',
                  'rb_cv_symbol_prefix': meson.get_compiler('c').symbols_have_underscore_prefix() ? '_' : 'NONE',
@@ -647,6 +698,7 @@ index 05979e8..7cdf13d 100644
 +                'ac_cv_func_backtrace': 'no',
 +                'ac_cv_func_mmap': 'no',
 +                'rb_cv_dev_t_convertible': 'INT',
++                'ac_cv_func_getrusage': 'no',
 +                # nx.rpg(horizon): libnx threads lack the guard-page layout
 +                # -fstack-protector assumes and ruby's own canaries fired
 +                # inside ruby_init on Switch. Pre-seed the shell variable
@@ -658,7 +710,7 @@ index 05979e8..7cdf13d 100644
              depends: [
                  # Force Meson to fully build all of our vendored dependencies that are required by Ruby before building Ruby itself
                  executable(
-@@ -160,46 +247,7 @@ ruby = declare_dependency(
+@@ -160,46 +248,7 @@ ruby = declare_dependency(
              ]
              : [],
          meson.project_build_root() / 'build' / 'ext' / 'extinit.a',

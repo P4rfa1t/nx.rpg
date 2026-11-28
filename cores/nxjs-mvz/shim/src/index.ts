@@ -71,7 +71,9 @@ export class MvzBootstrapImpl implements MvzBootstrap {
       appendRunLog(this.fs, manifest.logPath, `[INFO] nxjs-mvz session start game=${manifest.game.id} engine=${manifest.game.engine}`);
     }
 
-    // 1. Apply CPU clock profile before loading heavy V8 scripts
+    // 1. Configure the native HUD and clocks before loading game scripts.
+    const sw = (globalThis as any).Switch;
+    sw?.setShowFps?.(manifest.video.showFps);
     this.perf.applyCpuProfile(manifest.runtime.cpuProfile);
     this.perf.installMemoryPressureGuard(manifest.coreOptions?.mvz?.maxTextureSize ?? 4096);
 
@@ -99,15 +101,22 @@ export class MvzBootstrapImpl implements MvzBootstrap {
     this.nwjs.install(manifest);
     this.vfs.installNetworkInterceptors();
     this.dom.install(manifest);
-    this.input.install(manifest, () => {
-      void this.shutdownAndReturn();
-    });
+    const g = globalThis as any;
+    if (typeof g.close !== 'function') {
+      g.close = () => {
+        void this.shutdownAndReturn();
+      };
+    }
 
     // 5. Evaluate RPG Maker MV / MZ index.html scripts
     if (manifest.logPath) {
       appendRunLog(this.fs, manifest.logPath, '[INFO] evaluating game scripts (index.html)');
     }
-    await this.dom.evaluateIndexHtmlScripts('index.html');
+    await this.dom.evaluateIndexHtmlScripts('index.html', () => {
+      this.input.install(manifest, () => {
+        void this.shutdownAndReturn();
+      });
+    });
   }
 
   async shutdownAndReturn(fatalError?: unknown): Promise<never> {

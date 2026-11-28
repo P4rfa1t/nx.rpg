@@ -51,7 +51,8 @@ int LauncherApp::run(const BootContext& ctx) {
   brls::Application::createWindow(i18n->translate("app.title", "nx.rpg"));
   brls::Application::setGlobalQuit(false);
 
-  auto* root = new views::RootFrame(ctx, i18n);
+  auto transfer = std::make_shared<TransferService>();
+  auto* root = new views::RootFrame(ctx, i18n, transfer);
   brls::Application::pushActivity(new brls::Activity(root));
 
   if (ctx.memory_mode == MemoryExecutionMode::AppletRestrictedRam &&
@@ -78,6 +79,7 @@ int LauncherApp::run(const BootContext& ctx) {
   while (brls::Application::mainLoop()) {
     // Borealis event loop
   }
+  transfer->stop_all();
   NXLOG_INFO("app", "main loop exited");
   return 0;
 #else

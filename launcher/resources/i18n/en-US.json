@@ -12,7 +12,26 @@
     "library": "All Games",
     "recent": "Recent",
     "diagnostics": "Environment & Logs",
-    "settings": "Global Settings"
+    "settings": "Global Settings",
+    "transfer": "File Transfer"
+  },
+  "transfer": {
+    "intro": "Shares switch/nx.rpg/, including games, saves and cores. Both switches can run at once and keep running on other pages; they stop only when switched off, before a game launches, or when nx.rpg exits. FTP is unencrypted, so use it only on a trusted LAN.",
+    "mtp": "USB MTP",
+    "ftp": "LAN FTP",
+    "off": "Off",
+    "waiting": "Waiting for a connection",
+    "connected": "Connected",
+    "address": "Address",
+    "anonymous": "anonymous, no password",
+    "file": "File",
+    "speed": "Speed",
+    "received": "Received",
+    "files": "files",
+    "error": "Could not start transfer",
+    "error_short": "Error",
+    "stop_before_launch": "File Transfer is running. Stop USB MTP / LAN FTP before launching a game.",
+    "stop_and_launch": "Stop Transfer & Launch"
   },
   "actions": {
     "launch": "Launch Game",

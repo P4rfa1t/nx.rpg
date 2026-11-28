@@ -100,7 +100,12 @@ export class NwjsSandboxShimImpl implements NwjsSandboxShim {
     const self = this;
     const pathModule = {
       sep: '/',
-      join: (...args: string[]) => normalizePosix(joinPosix(...args)),
+      join: (...args: string[]) => {
+        const joined = args.filter(Boolean).join('/');
+        const normalized = normalizePosix(joined) || '.';
+        // MV and MZ concatenate the save filename to path.join(base, 'save/').
+        return /[\\/]$/.test(joined) && !normalized.endsWith('/') ? `${normalized}/` : normalized;
+      },
       resolve: (...args: string[]) => normalizePosix(joinPosix(self.contentRoot, ...args)),
       dirname: (p: string) => dirnamePosix(p),
       basename: (p: string, ext?: string) => {
@@ -151,9 +156,27 @@ export class NwjsSandboxShimImpl implements NwjsSandboxShim {
         }
         writeFileAtomicSync(self.fs, writePath, data);
       },
+      renameSync(source: string, target: string): void {
+        const from = self.resolvePath(source);
+        const to = self.resolvePath(target).writePath;
+        if (!self.isInsideSaveRoot(from.writePath) || !self.isInsideSaveRoot(to)) {
+          throw new Error(`EROFS: rename blocked outside isolated save directory '${source}' -> '${target}'`);
+        }
+        // MZ backs up an existing save before writing it. Legacy files stay read-only.
+        if (!self.fs.statSync(from.writePath) && from.readFallback) {
+          const legacy = self.fs.readFileSync(from.readFallback);
+          if (legacy) {
+            const bytes = legacy instanceof Uint8Array ? legacy : new Uint8Array(legacy);
+            writeFileAtomicSync(self.fs, to, bytes);
+            return;
+          }
+        }
+        self.fs.renameSync(from.writePath, to);
+      },
       unlinkSync(target: string): void {
-        const { writePath } = self.resolvePath(target);
+        const { writePath, readFallback } = self.resolvePath(target);
         if (!self.isInsideSaveRoot(writePath)) return;
+        if (readFallback && !self.fs.statSync(writePath) && self.fs.statSync(readFallback)) return;
         self.fs.removeSync(writePath);
       },
       readdirSync(target: string): string[] {
@@ -179,24 +202,67 @@ export class NwjsSandboxShimImpl implements NwjsSandboxShim {
     };
 
     const g = globalThis as any;
+    // Effekseer uses the Node clock whenever it sees the NW.js process object.
+    const startedAt = Date.now();
+    const nanosecondsPerSecond = 1_000_000_000n;
+    const nowNanoseconds = () => BigInt(Math.floor(
+      (g.performance?.now() ?? Date.now() - startedAt) * 1_000_000,
+    ));
+    const hrtime = (previous?: [number, number]): [number, number] => {
+      let elapsed = nowNanoseconds();
+      if (previous) {
+        elapsed -= BigInt(previous[0]) * nanosecondsPerSecond + BigInt(previous[1]);
+      }
+      const nanoseconds = (elapsed % nanosecondsPerSecond + nanosecondsPerSecond) % nanosecondsPerSecond;
+      return [Number((elapsed - nanoseconds) / nanosecondsPerSecond), Number(nanoseconds)];
+    };
+    hrtime.bigint = nowNanoseconds;
     g.process = {
       platform: 'win32',
       versions: { node: '20.0.0', nw: '0.49.2', 'node-webkit': '0.49.2' },
+      argv: [],
       mainModule: { filename: joinPosix(this.contentRoot, 'index.html') },
       cwd: () => this.contentRoot,
       env: {},
-      on: () => {},
+      hrtime,
+      nextTick: (fn: (...args: any[]) => void, ...args: any[]) =>
+        queueMicrotask(() => fn(...args)),
+      on: () => g.process,
+      once: () => g.process,
+      off: () => g.process,
+      removeListener: () => g.process,
+      emit: () => false,
     };
+    const makeWindowHandle = () => ({
+      show: () => {},
+      focus: () => {},
+      close: () => {},
+      enterFullscreen: () => {},
+      leaveFullscreen: () => {},
+      showDevTools: () => {},
+      setResizable: () => {},
+      resizeTo: () => {},
+      moveTo: () => {},
+      on: () => {},
+    });
     g.nw = {
-      App: { dataPath: this.saveRoot },
+      App: {
+        argv: [],
+        fullArgv: [],
+        dataPath: this.saveRoot,
+        manifest: { name: manifest.game.title },
+        quit: () => {},
+        on: () => {},
+      },
       Window: {
+        get: makeWindowHandle,
+        open: makeWindowHandle,
+      },
+      Clipboard: {
         get: () => ({
-          show: () => {},
-          focus: () => {},
-          close: () => {},
-          enterFullscreen: () => {},
-          leaveFullscreen: () => {},
-          on: () => {},
+          get: () => '',
+          set: () => {},
+          clear: () => {},
         }),
       },
     };

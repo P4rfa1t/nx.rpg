@@ -42,14 +42,13 @@ find "$SRC_STAGE/subprojects/packagefiles" -type f -exec sed -i 's/\r$//' {} +
 sed -i 's/\r$//' "$SRC_STAGE"/meson.build "$SRC_STAGE"/meson_options.txt 2>/dev/null || true
 git -C "$SRC_STAGE" init -q
 git -C "$SRC_STAGE" config core.autocrlf false
-for p in 0001-meson-horizon-host-and-nro-target.patch \
-         0002-switch-nxrpg-manifest-config-loader.patch \
-         0003-switch-sdl2-gamepad-exitcombo-and-chainload.patch \
-         0004-switch-swkbd-text-input-binding.patch \
-         0005-switch-sdl2-image-disable-jxl.patch \
-         0006-switch-boot-trace-diagnostics.patch; do
-  git -C "$SRC_STAGE" apply --ignore-whitespace "$ROOT_DIR/cores/mkxp-z/patches/$p"
-done
+PATCH_DIR="$ROOT_DIR/cores/mkxp-z/patches"
+while IFS= read -r patch; do
+  patch="${patch%$'\r'}"
+  [[ -z "$patch" || "$patch" == \#* ]] && continue
+  git -C "$SRC_STAGE" apply --ignore-whitespace "$PATCH_DIR/$patch"
+done < "$PATCH_DIR/SERIES"
+cp "$ROOT_DIR/common/include/nxrpg/fps_overlay.hpp" "$SRC_STAGE/src/display/nxrpg_fps_overlay.hpp"
 
 meson setup "$BUILD_DIR" "$SRC_STAGE" \
   --cross-file "$ROOT_DIR/cores/mkxp-z/cross/switch-aarch64.ini" \

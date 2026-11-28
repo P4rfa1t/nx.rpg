@@ -1,0 +1,170 @@
+--- a/packages/runtime/src/$.ts
++++ b/packages/runtime/src/$.ts
+@@ -222,6 +222,7 @@
+ 	appletGetOperationMode(): number;
+ 	appletSetMediaPlaybackState(state: boolean): void;
+ 	envSetNextLoad(path: string, argv?: string): void;
++	nxrpgSetShowFps(enabled: boolean): void;
+ 
+ 	// battery.c
+ 	batteryInit(): void;
+--- a/packages/runtime/src/switch/index.ts
++++ b/packages/runtime/src/switch/index.ts
+@@ -311,6 +311,11 @@
+ 	$.envSetNextLoad(path, argv);
+ }
+ 
++/** Draw a frame-rate counter over the game output. */
++export function setShowFps(enabled: boolean): void {
++	$.nxrpgSetShowFps(enabled);
++}
++
+ /**
+  * Returns the current working directory as a URL string with a trailing slash.
+  *
+--- a/source/main.cc
++++ b/source/main.cc
+@@ -29,6 +29,7 @@
+ #include "types.h"
+ #include "util.h"
+ #include "webgl.h"
++#include "nxrpg_fps_overlay.hpp"
+ 
+ #include "include/core/SkMilestone.h"
+ #include "include/core/SkSurface.h"
+@@ -517,6 +518,12 @@
+ 	info.GetReturnValue().Set(env);
+ }
+ 
++bool nxrpg_show_fps = false;
++
++static void nxrpg_set_show_fps(const FunctionCallbackInfo<Value> &info) {
++	nxrpg_show_fps = info[0]->BooleanValue(info.GetIsolate());
++}
++
+ static void nx_set_frame_handler(const FunctionCallbackInfo<Value> &info) {
+ 	Isolate *iso = info.GetIsolate();
+ 	nx_ctx(iso)->frame_handler.Reset(iso, info[0].As<Function>());
+@@ -1010,6 +1017,7 @@
+ 	NX_SET_FUNC(init_obj, "envToObject", js_env_to_object);
+ 	NX_SET_FUNC(init_obj, "onExit", nx_set_exit_handler);
+ 	NX_SET_FUNC(init_obj, "onFrame", nx_set_frame_handler);
++	NX_SET_FUNC(init_obj, "nxrpgSetShowFps", nxrpg_set_show_fps);
+ 	NX_SET_FUNC(init_obj, "framebufferInit", nx_framebuffer_init);
+ 	NX_SET_FUNC(init_obj, "hidInitializeTouchScreen",
+ 	            js_hid_initialize_touch_screen);
+@@ -1932,13 +1940,6 @@
+ 			u64 kDown = padGetButtonsDown(&nx_ctx->pads[0]);
+ 			bool plusDown = kDown & HidNpadButton_Plus;
+ 
+-			// `+` is handled by the JS frame handler below ($.onFrame dispatches
+-			// a cancelable "beforeunload" and calls $.exit() unless prevented),
+-			// exactly as on the raster path. Do NOT short-circuit it here: a
+-			// native break would bypass preventDefault() (e.g. snake pausing on
+-			// + during gameplay instead of exiting). The no-frame-handler case
+-			// still exits on + via the branch further down.
+-
+ 			// Script called Switch.exit(): break from any state so we always
+ 			// reach teardown (incl. horizon_mman_teardown()).
+ 			if (!is_running)
+@@ -1951,7 +1952,9 @@
+ 				HandleScope frame_scope(iso);
+ 				TryCatch try_catch(iso);
+ 				Local<Function> handler = nx_ctx->frame_handler.Get(iso);
+-				Local<Value> args[] = {Boolean::New(iso, plusDown)};
++				// nx.rpg handles the exit combo through the gamepad API. Do not
++				// deliver nx.js's built-in Plus-to-exit shortcut during gameplay.
++				Local<Value> args[] = {False(iso)};
+ 				Local<Value> ret;
+ 				if (!handler->Call(context, Null(iso), 1, args).ToLocal(&ret)) {
+ 					nx_emit_error_event(iso, &try_catch);
+@@ -1994,6 +1997,16 @@
+ 					if (fb != NULL) {
+ 						memcpy(fb, js_framebuffer,
+ 						       js_fb_width * js_fb_height * 4);
++						if (nxrpg_show_fps) {
++							static nxrpg::FpsOverlay overlay;
++							overlay.draw(js_fb_width, js_fb_height, [fb, stride](int x, int y, int w, int h, bool white) {
++								for (int row = y; row < y + h; ++row) {
++									auto *pixels = reinterpret_cast<uint32_t *>(fb + row * stride);
++									for (int col = x; col < x + w; ++col)
++										pixels[col] = white ? 0xffffffffu : 0xff000000u;
++								}
++							});
++						}
+ 						framebufferEnd(framebuffer);
+ 					}
+ 				}
+--- a/source/webgl.cc
++++ b/source/webgl.cc
+@@ -23,6 +23,9 @@
+  *     view so a short buffer can't make the driver read/write out of bounds.
+  */
+ #include "webgl.h"
++#include "nxrpg_fps_overlay.hpp"
++
++extern bool nxrpg_show_fps;
+ #include "error.h"
+ #include "wrap.h"
+ 
+@@ -2839,6 +2842,35 @@
+ 	if (!st || !st->active)
+ 		return;
+ 	if (st->dirty) {
++		if (nxrpg_show_fps) {
++			static nxrpg::FpsOverlay overlay;
++			GLint scissor[4];
++			GLfloat clear[4];
++			GLboolean mask[4];
++			const GLboolean scissorEnabled = glIsEnabled(GL_SCISSOR_TEST);
++			glGetIntegerv(GL_SCISSOR_BOX, scissor);
++			glGetFloatv(GL_COLOR_CLEAR_VALUE, clear);
++			glGetBooleanv(GL_COLOR_WRITEMASK, mask);
++			glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
++			GLint drawBuffer;
++			glGetIntegerv(GL_DRAW_BUFFER0, &drawBuffer);
++			const GLenum back = GL_BACK;
++			glDrawBuffers(1, &back);
++			glEnable(GL_SCISSOR_TEST);
++			glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
++			overlay.draw(st->width, st->height, [](int x, int y, int w, int h, bool white) {
++				glScissor(x, st->height - y - h, w, h);
++				const GLfloat color = white ? 1.f : 0.f;
++				const GLfloat rgba[] = {color, color, color, 1.f};
++				glClearBufferfv(GL_COLOR, 0, rgba);
++			});
++			const GLenum previous = static_cast<GLenum>(drawBuffer);
++			glDrawBuffers(1, &previous);
++			glBindFramebuffer(GL_DRAW_FRAMEBUFFER, st->draw_fbo);
++			glColorMask(mask[0], mask[1], mask[2], mask[3]);
++			glScissor(scissor[0], scissor[1], scissor[2], scissor[3]);
++			if (!scissorEnabled) glDisable(GL_SCISSOR_TEST);
++		}
+ 		eglSwapBuffers(st->dpy, st->surf);
+ 		st->dirty = false;
+ 	} else {
+--- a/source/skia_gpu.cc
++++ b/source/skia_gpu.cc
+@@ -1,4 +1,7 @@
+ #include "skia_gpu.h"
++#include "nxrpg_fps_overlay.hpp"
++
++extern bool nxrpg_show_fps;
+ 
+ #include <EGL/egl.h>
+ #include <EGL/eglext.h>
+@@ -194,6 +197,14 @@
+ 		paint.setBlendMode(SkBlendMode::kSrc);
+ 		c->drawImage(img, 0, 0, SkSamplingOptions(), &paint);
+ 	}
++	if (nxrpg_show_fps) {
++		static nxrpg::FpsOverlay overlay;
++		overlay.draw(s_w, s_h, [](int x, int y, int w, int h, bool white) {
++			SkPaint paint;
++			paint.setColor(white ? SK_ColorWHITE : SK_ColorBLACK);
++			s_fbo->getCanvas()->drawRect(SkRect::MakeXYWH(x, y, w, h), paint);
++		});
++	}
+ 	s_gr->flush(s_fbo.get());
+ 	s_gr->submit();
+ 	eglSwapBuffers(s_dpy, s_surf);

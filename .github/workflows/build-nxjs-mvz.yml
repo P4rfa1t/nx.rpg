@@ -8,6 +8,7 @@ on:
     branches: [main]
     paths:
       - 'cores/nxjs-mvz/**'
+      - 'common/include/nxrpg/fps_overlay.hpp'
       - 'scripts/bootstrap-cores.sh'
       - 'scripts/apply-patches.sh'
       - 'scripts/build-nxjs-mvz-switch.sh'
@@ -15,6 +16,7 @@ on:
   pull_request:
     paths:
       - 'cores/nxjs-mvz/**'
+      - 'common/include/nxrpg/fps_overlay.hpp'
       - 'scripts/bootstrap-cores.sh'
       - 'scripts/apply-patches.sh'
       - 'scripts/build-nxjs-mvz-switch.sh'

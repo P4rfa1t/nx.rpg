@@ -8,6 +8,7 @@ on:
     branches: [main]
     paths:
       - 'cores/mkxp-z/**'
+      - 'common/include/nxrpg/fps_overlay.hpp'
       - 'scripts/bootstrap-cores.sh'
       - 'scripts/apply-patches.sh'
       - 'scripts/build-mkxp-z-switch.sh'
@@ -15,6 +16,7 @@ on:
   pull_request:
     paths:
       - 'cores/mkxp-z/**'
+      - 'common/include/nxrpg/fps_overlay.hpp'
       - 'scripts/bootstrap-cores.sh'
       - 'scripts/apply-patches.sh'
       - 'scripts/build-mkxp-z-switch.sh'

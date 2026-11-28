@@ -68,7 +68,6 @@ Switch `hbmenu` 与 Horizon OS 对 `.nro` 包装元数据有严格格式要求�
     | [build-mkxp-z.yml](../.github/workflows/build-mkxp-z.yml) | `cores/mkxp-z/**` | `mkxp-z-core` |
   - 例如只改 shim TypeScript 时，其余三个 workflow 完全不会运行。
 - **Stage C — 发布打包与 GPL 合规源码归档（[release.yml](../.github/workflows/release.yml)，Tag `v*` 或手动触发）**：
-  1. `nx.rpg-vX.Y.Z-launcher.zip`：`switch/nx.rpg/` 目录结构的前端包（含 `nx.rpg.nro`、`config/global.example.json`、`LICENSE`、`THIRD_PARTY_LICENSES.md`、部署说明 README.txt）。
-  2. `nx.rpg-vX.Y.Z-cores.zip`：三个核心 NRO 合集包（`cores/easyrpg.nro`、`cores/nxjs-mvz.nro`、`cores/mkxp-z.nro` + 说明）。
-  3. `nx.rpg-vX.Y.Z-gpl-sources.tar.zst`：自动归档本次构建实际使用的 `upstreams.lock.json`、对应版本的 `EasyRPG/Player`（GPL-3.0）与 `mkxp-z` + `Ruby`（GPL-2.0）源码快照及 `cores/*/patches/` 完整补丁集，100% 履行 GPL 二进制分发附带完整对应源码（Corresponding Source）的义务。
-  4. 以上三个文件经 `softprops/action-gh-release` 自动发布到 GitHub Releases。
+  1. `nx.rpg-vX.Y.Z.zip` 包含 `switch/nx.rpg/nx.rpg.nro` 和同目录下的 `cores/`。将 `switch` 解压到 SD 卡根目录即可安装。`scripts/package-release.py` 在打包时校验四个 NRO 的头部与 ZIP 完整性。
+  2. `nx.rpg-vX.Y.Z-gpl-sources.tar.gz` 包含对应发布提交、锁定版本的三个上游核心、补丁队列、构建脚本和 Ruby 3.1.3 源码包。
+  3. 版本标签的构建将上述两个附件发布到 GitHub Releases。
